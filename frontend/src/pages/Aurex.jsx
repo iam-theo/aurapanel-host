@@ -1,0 +1,268 @@
+import { useEffect, useState, useRef } from 'react'
+import { Bot, Folder, Play, Square, RefreshCw, Cpu, FileCode, Terminal, Layers, Clock, Check, AlertCircle, Loader2, ExternalLink, Copy } from 'lucide-react'
+import { api } from '../lib/api'
+import { formatBytes } from '../lib/utils'
+
+export default function Aurex() {
+  const [hostPath, setHostPath] = useState('/home/digital-auracle/apps')
+  const [hostData, setHostData] = useState(null)
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [projectDetail, setProjectDetail] = useState(null)
+  const [task, setTask] = useState('')
+  const [model, setModel] = useState('opencode/big-pickle')
+  const [models, setModels] = useState([])
+  const [runs, setRuns] = useState([])
+  const [activeRun, setActiveRun] = useState(null)
+  const [events, setEvents] = useState([])
+  const [workspace, setWorkspace] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState(null)
+  const eventRef = useRef(null)
+
+  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
+
+  // Host path browser
+  const loadHostPath = async (path) => {
+    try {
+      const d = await api.get(`/aurex/host-paths?path=${encodeURIComponent(path)}`)
+      setHostData(d); setHostPath(d.path)
+    } catch (e) { toastMsg(e.message) }
+  }
+
+  const loadProjects = async () => {
+    try {
+      const d = await api.get('/aurex/projects')
+      setProjects(Array.isArray(d) ? d : d.projects || [])
+    } catch (e) { toastMsg('Aurex API: ' + e.message) }
+  }
+
+  const loadProjectDetail = async (id) => {
+    try {
+      const d = await api.get(`/aurex/projects/${id}`)
+      setProjectDetail(d); setRuns(d.runs || [])
+    } catch (e) { toastMsg(e.message) }
+  }
+
+  const loadModels = async () => {
+    try { const d = await api.get('/aurex/models'); setModels(d.models || d || []) } catch {}
+  }
+
+  const loadWorkspace = async () => {
+    try { const d = await api.get('/aurex/workspaces/me'); setWorkspace(d) } catch {}
+  }
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true)
+      await Promise.allSettled([loadHostPath(hostPath), loadProjects(), loadModels(), loadWorkspace()])
+      setLoading(false)
+    }
+    init()
+    const t = setInterval(loadProjects, 15000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    if (selectedProject) loadProjectDetail(selectedProject)
+  }, [selectedProject])
+
+  // SSE for active run
+  useEffect(() => {
+    if (!activeRun) return
+    setEvents([])
+    const token = localStorage.getItem('panel_token')
+    const url = `/api/aurex/runs/${activeRun}/events`
+    const es = new EventSource(url)
+    es.addEventListener('event', (e) => {
+      try {
+        const d = JSON.parse(e.data)
+        setEvents(prev => [...prev, d])
+        eventRef.current?.scrollTo(0, eventRef.current.scrollHeight)
+      } catch {}
+    })
+    es.addEventListener('run', (e) => {
+      try {
+        const d = JSON.parse(e.data)
+        if (d.status) toastMsg(`Run ${d.status}`)
+        if (d.status === 'completed' || d.status === 'failed') loadProjectDetail(selectedProject)
+      } catch {}
+    })
+    es.onerror = () => { es.close() }
+    return () => es.close()
+  }, [activeRun])
+
+  const createProjectFromHost = async () => {
+    const name = hostPath.split('/').filter(Boolean).pop() || 'Host Project'
+    try {
+      const r = await api.post('/aurex/bridge/import', { hostPath, projectName: name })
+      toastMsg(`Linked host ${hostPath} → project ${r.project?.name || name}`)
+      await loadProjects()
+      if (r.project?.id) setSelectedProject(r.project.id)
+    } catch (e) { toastMsg(e.message) }
+  }
+
+  const createRun = async () => {
+    if (!selectedProject || !task.trim()) return toastMsg('Select project and enter task')
+    try {
+      const r = await api.post('/aurex/runs', { projectId: selectedProject, task: task.trim(), model, hostPath })
+      toastMsg(`Run queued: ${r.id?.slice(0, 8)}`)
+      setTask('')
+      setActiveRun(r.id)
+      loadProjectDetail(selectedProject)
+    } catch (e) { toastMsg(e.message) }
+  }
+
+  const abortRun = async (id) => {
+    try { await api.post(`/aurex/runs/${id}/abort`); toastMsg('Abort requested') } catch (e) { toastMsg(e.message) }
+  }
+
+  if (loading) return <div className="p-8 animate-pulse space-y-4"><div className="h-24 bg-panel-card rounded" /><div className="h-64 bg-panel-card rounded" /></div>
+
+  return (
+    <div className="p-6 space-y-6">
+      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm max-w-md">{toast}</div>}
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center"><Bot size={20} className="text-white" /></div>
+          <div>
+            <h1 className="text-xl font-bold">Aurex — Coding Agent</h1>
+            <p className="text-xs text-panel-muted">Select host path where the agent runs its development processes</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`status-badge ${workspace ? 'online' : 'offline'}`}>{workspace ? 'Workspace ready' : 'Workspace not ready'}</span>
+          <button className="btn-ghost" onClick={() => { loadProjects(); loadHostPath(hostPath); loadWorkspace() }}><RefreshCw size={16} /></button>
+          <a href="https://aurex.sflbk.com" target="_blank" rel="noreferrer" className="btn-ghost"><ExternalLink size={14} /> Aurex Web</a>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {/* Host Path Selector */}
+        <div className="panel-card">
+          <h3 className="font-semibold flex items-center gap-2 mb-3"><Folder size={16} className="text-panel-blue" /> Host Path — Agent Environment</h3>
+          <div className="bg-panel-bg rounded-md p-2 border border-panel-border flex items-center gap-2 mb-3">
+            <code className="flex-1 text-xs font-mono truncate">{hostPath}</code>
+            <button onClick={() => navigator.clipboard?.writeText(hostPath)} className="btn-ghost !px-2 !py-1"><Copy size={12} /></button>
+          </div>
+          <div className="flex gap-1.5 mb-3 flex-wrap">
+            {hostData?.allowedRoots?.slice(0, 5).map(r => (
+              <button key={r} onClick={() => loadHostPath(r)} className="text-xs px-2 py-1 rounded bg-panel-bg border border-panel-border hover:bg-panel-accent/10 truncate max-w-[140px]">{r}</button>
+            ))}
+          </div>
+          <div className="border border-panel-border rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
+            <div className="flex items-center gap-2 p-2 border-b border-panel-border bg-panel-bg/50">
+              <button disabled={hostPath === '/'} onClick={() => loadHostPath(hostPath.split('/').slice(0, -1).join('/') || '/')} className="text-xs btn-ghost !py-1 disabled:opacity-40">↑ Up</button>
+              <span className="text-xs text-panel-muted truncate flex-1">{hostPath}</span>
+              <button onClick={createProjectFromHost} className="btn-accent !py-1 !px-3 text-xs">Link to Aurex</button>
+            </div>
+            {hostData?.entries?.map(e => (
+              <button key={e.path} onClick={() => e.isDirectory && loadHostPath(e.path)} className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-panel-accent/10 text-sm ${e.isDirectory ? 'text-panel-text' : 'text-panel-muted'}`}>
+                <span className="flex items-center gap-2 truncate"><Folder size={13} className={e.isDirectory ? 'text-panel-blue' : 'text-panel-muted'} />{e.name}</span>
+                <span className="text-xs text-panel-muted">{e.isDirectory ? '' : formatBytes(e.size)}</span>
+              </button>
+            ))}
+            {hostData?.entries?.length === 0 && <p className="p-4 text-sm text-panel-muted text-center">Empty directory</p>}
+          </div>
+          <p className="text-xs text-panel-muted mt-3">The agent will receive this host path as context in its <code className="font-mono bg-panel-bg px-1 rounded">task</code>. Use “Link to Aurex” to create a project from this directory, then run tasks.</p>
+        </div>
+
+        {/* Projects & Task */}
+        <div className="panel-card xl:col-span-2">
+          <h3 className="font-semibold flex items-center gap-2 mb-3"><Layers size={16} className="text-panel-purple" /> Projects & Tasks</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div>
+              <p className="text-xs text-panel-muted mb-2">Aurex Projects ({projects.length})</p>
+              <div className="border border-panel-border rounded-md max-h-[220px] overflow-y-auto">
+                {projects.map(p => (
+                  <button key={p.id} onClick={() => setSelectedProject(p.id)} className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-panel-accent/10 ${selectedProject === p.id ? 'bg-panel-accent/15 border-l-2 border-panel-accent' : ''}`}>
+                    <span className="font-medium text-sm truncate">{p.name}</span>
+                    <span className="text-xs text-panel-muted">{p._count?.runs ?? p.runs?.length ?? 0} runs</span>
+                  </button>
+                ))}
+                {projects.length === 0 && <p className="p-4 text-sm text-panel-muted">No projects — link a host path above</p>}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-panel-muted mb-2">Create Task for Selected Project</p>
+              {selectedProject ? (
+                <div className="space-y-3">
+                  <div className="bg-panel-bg rounded-md p-2 border border-panel-border">
+                    <p className="text-xs text-panel-muted">Host context</p>
+                    <code className="text-xs font-mono text-panel-accent">{hostPath}</code>
+                  </div>
+                  <textarea value={task} onChange={e => setTask(e.target.value)} placeholder="Describe the task for the coding agent... e.g. 'Fix the nginx config, add tests, and commit'" rows={4} className="input-field resize-none" />
+                  <div className="flex gap-2">
+                    <select value={model} onChange={e => setModel(e.target.value)} className="input-field !py-2 text-xs flex-1">
+                      <option value="opencode/big-pickle">opencode/big-pickle</option>
+                      {models.map(m => <option key={m.model || m.id} value={m.model}>{m.label || m.model}</option>)}
+                    </select>
+                    <button onClick={createRun} className="btn-accent !px-4"><Play size={14} /> Run Agent</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-panel-muted border border-dashed border-panel-border rounded-md p-4 text-center">Select a project to run tasks</p>
+              )}
+            </div>
+          </div>
+
+          {/* Runs for selected project */}
+          {projectDetail && (
+            <div>
+              <p className="text-xs text-panel-muted mb-2">Recent Runs for <span className="font-mono text-panel-text">{projectDetail.name}</span></p>
+              <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                {runs.map(r => (
+                  <div key={r.id} className={`flex items-center justify-between p-3 rounded-md border ${activeRun === r.id ? 'bg-panel-accent/10 border-panel-accent' : 'bg-panel-bg border-panel-border'}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{r.task?.slice(0, 80)}</p>
+                      <p className="text-xs text-panel-muted flex items-center gap-2"><Clock size={10} />{new Date(r.createdAt).toLocaleString()} • <span className={`px-1.5 py-0.5 rounded text-[10px] ${r.status === 'completed' ? 'bg-panel-green/15 text-panel-green' : r.status === 'failed' ? 'bg-panel-red/15 text-panel-red' : r.status === 'running' ? 'bg-panel-yellow/15 text-panel-yellow animate-pulse' : 'bg-panel-muted/15'}`}>{r.status}</span></p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => setActiveRun(r.id)} className="btn-ghost !px-2 !py-1 text-xs">Watch</button>
+                      {(r.status === 'running' || r.status === 'queued') && <button onClick={() => abortRun(r.id)} className="btn !px-2 !py-1 !bg-panel-red/20 !text-panel-red"><Square size={12} /></button>}
+                    </div>
+                  </div>
+                ))}
+                {runs.length === 0 && <p className="text-sm text-panel-muted text-center py-4">No runs yet</p>}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Live Agent Execution */}
+      {activeRun && (
+        <div className="panel-card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2"><Terminal size={16} className="text-panel-green" /> Live Agent — Tools & Execution <span className="font-mono text-xs text-panel-muted">{activeRun.slice(0, 8)}</span></h3>
+            <div className="flex gap-2">
+              <button onClick={() => setActiveRun(null)} className="btn-ghost !py-1 text-xs">Close</button>
+              <button onClick={() => abortRun(activeRun)} className="btn !py-1 !bg-panel-red/20 !text-panel-red text-xs"><Square size={12} /> Abort</button>
+            </div>
+          </div>
+          <div ref={eventRef} className="bg-[#0b0e14] text-[#e6edf3] rounded-md p-4 font-mono text-xs max-h-[400px] overflow-y-auto whitespace-pre-wrap border border-panel-border">
+            {events.length === 0 ? <p className="text-panel-muted flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Waiting for agent events… (tools: read, write, exec, test)</p> : events.map((e, i) => (
+              <div key={i} className="mb-2 border-l-2 border-panel-accent/40 pl-3 py-1">
+                <span className="text-panel-muted">[{e.type}]</span> <span className="text-panel-accentLight">{JSON.stringify(e.data).slice(0, 600)}</span>
+                <span className="text-panel-muted ml-2 text-[10px]">{new Date(e.createdAt).toLocaleTimeString()}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-panel-muted mt-2">Host path <code className="font-mono bg-panel-bg px-1 rounded">{hostPath}</code> is injected into task context. The agent runs isolated in its Docker workspace; host files are bridged via import when you “Link to Aurex”.</p>
+        </div>
+      )}
+
+      <div className="panel-card bg-panel-blue/5 border-panel-blue/20">
+        <h4 className="font-medium text-panel-text flex items-center gap-2"><Cpu size={14} className="text-panel-blue" /> How it works</h4>
+        <ol className="text-sm text-panel-muted mt-2 space-y-1 list-decimal list-inside">
+          <li>Browse host filesystem on the left and pick the directory where the agent should work (e.g. <code className="font-mono">/home/panel/apps/myapp</code>).</li>
+          <li>Click <b>Link to Aurex</b> — creates an Aurex project linked to that host path.</li>
+          <li>Select the project, type a coding task, pick a model, hit <b>Run Agent</b>. The task is enriched with <code className="font-mono">[HOST PATH: …]</code> context.</li>
+          <li>Watch live tool execution (file reads/writes, shell, tests) in the terminal below — streamed via SSE from <code className="font-mono">/api/aurex/runs/:id/events</code>.</li>
+          <li>Results persist in Aurex (project → runs → events) and can be exported as ZIP via Aurex web.</li>
+        </ol>
+      </div>
+    </div>
+  )
+}

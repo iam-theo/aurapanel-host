@@ -3,7 +3,7 @@ import { NavLink, Outlet, Link, useLocation, useNavigate } from 'react-router-do
 import {
   LayoutDashboard, Server, Boxes, Database, Globe, FolderOpen,
   Cpu, Settings as SettingsIcon, Activity, Terminal, ChevronDown,
-  Menu, X, ChevronRight, Archive, Clock, KeyRound, LogOut, Package,
+  Menu, X, ChevronRight, Archive, Clock, KeyRound, LogOut, Package, Bot,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -34,6 +34,12 @@ const navGroups = [
     items: [
       { to: '/domains', label: 'Domains', icon: Globe },
       { to: '/files', label: 'File Manager', icon: FolderOpen },
+    ],
+  },
+  {
+    title: 'AI',
+    items: [
+      { to: '/aurex', label: 'Aurex Agent', icon: Bot },
     ],
   },
   {

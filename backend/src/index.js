@@ -19,6 +19,7 @@ import authRoutes from './routes/auth.js';
 import metricsRoutes from './routes/metrics.js';
 import healthRoutes from './routes/health.js';
 import packagesRoutes from './routes/packages.js';
+import aurexRoutes from './routes/aurex.js';
 
 import { logger } from './lib/logger.js';
 import { metricsMiddleware, register } from './lib/metrics.js';
@@ -114,6 +115,7 @@ function mountApi(prefix) {
   app.use(`${prefix}/users`, userRoutes);
   app.use(`${prefix}/settings`, settingRoutes);
   app.use(`${prefix}/packages`, packagesRoutes);
+  app.use(`${prefix}/aurex`, aurexRoutes);
 }
 mountApi('/api');
 mountApi('/api/v1');
