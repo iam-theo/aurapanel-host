@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server-panel/backend/package-lock.json
+      - run: npm ci
+        working-directory: server-panel/backend
+      - run: npm test
+        working-directory: server-panel/backend
+        env:
+          AUTH_DISABLED: 'true'
+          JWT_SECRET: 'ci-test-secret'
+      - run: npm run build --if-present
+        working-directory: server-panel/backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server-panel/frontend/package-lock.json
+      - run: npm ci
+        working-directory: server-panel/frontend
+      - run: npm run build
+        working-directory: server-panel/frontend

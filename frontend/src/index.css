@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #131519;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1a1d24;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2d35;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3d45;
+  }
+}
+
+@layer components {
+  .panel-card {
+    @apply bg-panel-card border border-panel-border rounded-lg p-5;
+  }
+  .panel-card-hover {
+    @apply transition-all duration-200 hover:bg-panel-cardHover hover:border-panel-accent/40;
+  }
+  .btn {
+    @apply px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-panel-accent/50 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-accent {
+    @apply btn bg-panel-accent text-white hover:bg-panel-accent/90;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent border border-panel-border text-panel-text hover:bg-panel-cardHover;
+  }
+  .btn-green {
+    @apply btn bg-panel-green/20 text-panel-green hover:bg-panel-green/30;
+  }
+  .btn-red {
+    @apply btn bg-panel-red/20 text-panel-red hover:bg-panel-red/30;
+  }
+  .input-field {
+    @apply w-full bg-panel-bg border border-panel-border rounded-md px-3 py-2 text-sm text-panel-text placeholder-panel-muted focus:outline-none focus:border-panel-accent;
+  }
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-panel-muted hover:text-panel-text hover:bg-white/5 cursor-pointer transition-all duration-150;
+  }
+  .nav-item.active {
+    @apply bg-panel-accent/15 text-panel-accentLight font-medium;
+  }
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+  .status-badge.online {
+    @apply bg-panel-green/15 text-panel-green;
+  }
+  .status-badge.offline {
+    @apply bg-panel-red/15 text-panel-red;
+  }
+}

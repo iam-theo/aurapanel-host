@@ -1,0 +1,22 @@
+[Unit]
+Description=ServerPanel API (aaPanel-like)
+After=network.target nginx.service docker.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=panel
+WorkingDirectory=/opt/server-panel/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/server-panel/backend/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=3
+# allow binding low ports if you change PANEL_PORT to 80/443
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=panel-api
+
+[Install]
+WantedBy=multi-user.target
