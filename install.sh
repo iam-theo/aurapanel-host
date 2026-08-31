@@ -41,7 +41,7 @@ PANEL_WEB_PORT="${PANEL_WEB_PORT:-5180}"
 PANEL_ADMIN_USER="${PANEL_ADMIN_USER:-admin}"
 PANEL_ADMIN_PASS="${PANEL_ADMIN_PASS:-}" # generated if empty
 BRANCH="${BRANCH:-main}"
-REPO_URL="${REPO_URL:-https://github.com/anomalyco/opencode.git}" # override if you host panel separately
+REPO_URL="${REPO_URL:-https://github.com/iam-theo/aurapanel-host.git}" # override if you host panel separately
 # if script lives inside a checkout, use that as source instead of cloning
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -f "$SCRIPT_DIR/backend/package.json" && -f "$SCRIPT_DIR/frontend/package.json" ]]; then
