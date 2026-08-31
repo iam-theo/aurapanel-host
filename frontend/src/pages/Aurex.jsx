@@ -18,6 +18,8 @@ export default function Aurex() {
   const [workspace, setWorkspace] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
+  const [chatInput, setChatInput] = useState('')
+  const [sending, setSending] = useState(false)
   const eventRef = useRef(null)
 
   const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
@@ -45,7 +47,11 @@ export default function Aurex() {
   }
 
   const loadModels = async () => {
-    try { const d = await api.get('/aurex/models'); setModels(d.models || d || []) } catch {}
+    try {
+      const d = await api.get('/aurex/models');
+      const arr = Array.isArray(d) ? d : Array.isArray(d.models) ? d.models : Array.isArray(d?.models) ? d.models : [];
+      setModels(arr);
+    } catch {}
   }
 
   const loadWorkspace = async () => {
@@ -117,6 +123,25 @@ export default function Aurex() {
     try { await api.post(`/aurex/runs/${id}/abort`); toastMsg('Abort requested') } catch (e) { toastMsg(e.message) }
   }
 
+  const sendMessage = async () => {
+    if (!activeRun || !chatInput.trim() || sending) return
+    const text = chatInput.trim()
+    setSending(true)
+    try {
+      await api.post(`/aurex/runs/${activeRun}/messages`, { text })
+      setChatInput('')
+      toastMsg('Message sent')
+    } catch (e) { toastMsg(e.message) } finally { setSending(false) }
+  }
+
+  const answerQuestions = async (requestId, answers) => {
+    if (!activeRun) return
+    try {
+      await api.post(`/aurex/runs/${activeRun}/questions`, { requestId, answers })
+      toastMsg('Answers sent')
+    } catch (e) { toastMsg(e.message) }
+  }
+
   if (loading) return <div className="p-8 animate-pulse space-y-4"><div className="h-24 bg-panel-card rounded" /><div className="h-64 bg-panel-card rounded" /></div>
 
   return (
@@ -147,7 +172,7 @@ export default function Aurex() {
             <button onClick={() => navigator.clipboard?.writeText(hostPath)} className="btn-ghost !px-2 !py-1"><Copy size={12} /></button>
           </div>
           <div className="flex gap-1.5 mb-3 flex-wrap">
-            {hostData?.allowedRoots?.slice(0, 5).map(r => (
+            {(hostData?.allowedRoots || []).slice(0, 5).map(r => (
               <button key={r} onClick={() => loadHostPath(r)} className="text-xs px-2 py-1 rounded bg-panel-bg border border-panel-border hover:bg-panel-accent/10 truncate max-w-[140px]">{r}</button>
             ))}
           </div>
@@ -168,12 +193,43 @@ export default function Aurex() {
           <p className="text-xs text-panel-muted mt-3">The agent will receive this host path as context in its <code className="font-mono bg-panel-bg px-1 rounded">task</code>. Use “Link to Aurex” to create a project from this directory, then run tasks.</p>
         </div>
 
-        {/* Projects & Task */}
+        {/* Projects & Task — Run Task always visible */}
         <div className="panel-card xl:col-span-2">
           <h3 className="font-semibold flex items-center gap-2 mb-3"><Layers size={16} className="text-panel-purple" /> Projects & Tasks</h3>
+          {/* Run Task — always visible */}
+          <div className="bg-panel-accent/5 border border-panel-accent/20 rounded-lg p-4 mb-4">
+            <p className="text-sm font-semibold text-panel-text flex items-center gap-2 mb-3"><Play size={14} className="text-panel-accent" /> Run Task — Agent will work in the selected host path</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-panel-muted">Project (required)</label>
+                  <select value={selectedProject || ''} onChange={e => setSelectedProject(e.target.value || null)} className="input-field !py-2 text-sm mt-1">
+                    <option value="">Select project…</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name} ({p._count?.runs ?? p.runs?.length ?? 0} runs)</option>)}
+                  </select>
+                  {projects.length === 0 && <p className="text-xs text-panel-muted mt-1">No projects — click “Link to Aurex” on the left first</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-panel-muted">Host path context (auto-injected)</label>
+                  <div className="bg-panel-bg rounded-md px-3 py-2 border border-panel-border mt-1">
+                    <code className="text-xs font-mono text-panel-accent truncate block">{hostPath}</code>
+                  </div>
+                </div>
+              </div>
+              <textarea value={task} onChange={e => setTask(e.target.value)} placeholder="Describe the task for the coding agent… e.g. 'Fix the nginx config for /home/panel/apps/myapp, add tests, and commit'" rows={4} className="input-field resize-none" />
+              <div className="flex gap-2">
+                <select value={model} onChange={e => setModel(e.target.value)} className="input-field !py-2 text-xs flex-1">
+                  <option value="opencode/big-pickle">opencode/big-pickle</option>
+                  {models.map(m => <option key={m.model || m.id} value={m.model}>{m.label || m.model}</option>)}
+                </select>
+                <button onClick={createRun} disabled={!selectedProject || !task.trim()} className="btn-accent !px-6 disabled:opacity-40"><Play size={14} /> Run Task</button>
+              </div>
+              {!selectedProject && <p className="text-xs text-panel-yellow">Select a project above to enable Run Task</p>}
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <div>
-              <p className="text-xs text-panel-muted mb-2">Aurex Projects ({projects.length})</p>
+              <p className="text-xs text-panel-muted mb-2">Aurex Projects ({projects.length}) — click to view runs</p>
               <div className="border border-panel-border rounded-md max-h-[220px] overflow-y-auto">
                 {projects.map(p => (
                   <button key={p.id} onClick={() => setSelectedProject(p.id)} className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-panel-accent/10 ${selectedProject === p.id ? 'bg-panel-accent/15 border-l-2 border-panel-accent' : ''}`}>
@@ -181,29 +237,13 @@ export default function Aurex() {
                     <span className="text-xs text-panel-muted">{p._count?.runs ?? p.runs?.length ?? 0} runs</span>
                   </button>
                 ))}
-                {projects.length === 0 && <p className="p-4 text-sm text-panel-muted">No projects — link a host path above</p>}
+                {projects.length === 0 && <p className="p-4 text-sm text-panel-muted">No projects — link a host path on the left</p>}
               </div>
             </div>
-            <div>
-              <p className="text-xs text-panel-muted mb-2">Create Task for Selected Project</p>
-              {selectedProject ? (
-                <div className="space-y-3">
-                  <div className="bg-panel-bg rounded-md p-2 border border-panel-border">
-                    <p className="text-xs text-panel-muted">Host context</p>
-                    <code className="text-xs font-mono text-panel-accent">{hostPath}</code>
-                  </div>
-                  <textarea value={task} onChange={e => setTask(e.target.value)} placeholder="Describe the task for the coding agent... e.g. 'Fix the nginx config, add tests, and commit'" rows={4} className="input-field resize-none" />
-                  <div className="flex gap-2">
-                    <select value={model} onChange={e => setModel(e.target.value)} className="input-field !py-2 text-xs flex-1">
-                      <option value="opencode/big-pickle">opencode/big-pickle</option>
-                      {models.map(m => <option key={m.model || m.id} value={m.model}>{m.label || m.model}</option>)}
-                    </select>
-                    <button onClick={createRun} className="btn-accent !px-4"><Play size={14} /> Run Agent</button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-panel-muted border border-dashed border-panel-border rounded-md p-4 text-center">Select a project to run tasks</p>
-              )}
+            <div className="border border-dashed border-panel-border rounded-md p-4 flex flex-col items-center justify-center text-center">
+              <p className="text-sm font-medium">Quick Link</p>
+              <p className="text-xs text-panel-muted mt-1">Host <code className="font-mono bg-panel-bg px-1 rounded">{hostPath}</code></p>
+              <button onClick={createProjectFromHost} className="btn-ghost !py-1.5 text-xs mt-3">Link this path to new Aurex project</button>
             </div>
           </div>
 
@@ -231,25 +271,88 @@ export default function Aurex() {
         </div>
       </div>
 
-      {/* Live Agent Execution */}
+      {/* Chat UI — like aurex.sflbk.com */}
       {activeRun && (
-        <div className="panel-card">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold flex items-center gap-2"><Terminal size={16} className="text-panel-green" /> Live Agent — Tools & Execution <span className="font-mono text-xs text-panel-muted">{activeRun.slice(0, 8)}</span></h3>
+        <div className="panel-card flex flex-col" style={{ height: '520px' }}>
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <h3 className="font-semibold flex items-center gap-2"><Terminal size={16} className="text-panel-green" /> Chat — Live Agent <span className="font-mono text-xs text-panel-muted">{activeRun.slice(0, 8)}</span> <span className="text-xs px-2 py-0.5 rounded bg-panel-yellow/15 text-panel-yellow animate-pulse">● live</span></h3>
             <div className="flex gap-2">
               <button onClick={() => setActiveRun(null)} className="btn-ghost !py-1 text-xs">Close</button>
               <button onClick={() => abortRun(activeRun)} className="btn !py-1 !bg-panel-red/20 !text-panel-red text-xs"><Square size={12} /> Abort</button>
             </div>
           </div>
-          <div ref={eventRef} className="bg-[#0b0e14] text-[#e6edf3] rounded-md p-4 font-mono text-xs max-h-[400px] overflow-y-auto whitespace-pre-wrap border border-panel-border">
-            {events.length === 0 ? <p className="text-panel-muted flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Waiting for agent events… (tools: read, write, exec, test)</p> : events.map((e, i) => (
-              <div key={i} className="mb-2 border-l-2 border-panel-accent/40 pl-3 py-1">
-                <span className="text-panel-muted">[{e.type}]</span> <span className="text-panel-accentLight">{JSON.stringify(e.data).slice(0, 600)}</span>
-                <span className="text-panel-muted ml-2 text-[10px]">{new Date(e.createdAt).toLocaleTimeString()}</span>
+          {/* Messages — chat bubbles + tool cards */}
+          <div ref={eventRef} className="flex-1 overflow-y-auto space-y-3 bg-[#0b0e14] rounded-md p-4 border border-panel-border">
+            {events.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-panel-muted">
+                <Loader2 size={20} className="animate-spin mb-2" />
+                <p className="text-xs">Waiting for agent… (tools: read, write, edit, bash, grep, todo)</p>
+                <p className="text-xs mt-1">Host: <code className="font-mono bg-white/10 px-1 rounded">{hostPath}</code></p>
               </div>
-            ))}
+            ) : events.map((e, i) => {
+              const d = e.data || {}
+              const isUser = d.role === 'user' || e.type === 'message'
+              const isTool = d.part?.tool
+              const isQuestion = e.type === 'question' || d.questions
+              if (isQuestion && d.questions) {
+                return (
+                  <div key={i} className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-amber-400 mb-2">Agent asks:</p>
+                    {d.questions.map((q, qi) => (
+                      <div key={qi} className="mb-2">
+                        <p className="text-sm text-white">{q.question}</p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                          {q.options?.map((opt, oi) => (
+                            <button key={oi} onClick={() => answerQuestions(d.requestId, [[opt.label]])} className="text-xs px-3 py-1 rounded-full bg-white text-black hover:bg-white/90">{opt.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+              if (isTool) {
+                const part = d.part
+                const input = part?.state?.input || {}
+                const output = part?.state?.output || part?.state?.metadata?.output || ''
+                const title = part?.state?.title || part?.tool
+                return (
+                  <div key={i} className="bg-white/[0.04] border border-white/10 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-[10px]">{(part.tool || '').slice(0, 2)}</span>
+                      <span className="font-mono text-white">{title}</span>
+                      <span className="ml-auto text-[10px]">{new Date(e.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    {input.filePath && <p className="text-xs font-mono text-white/50 mt-1 truncate">{input.filePath}</p>}
+                    {input.command && <p className="text-xs font-mono bg-black/30 rounded px-2 py-1 mt-1">$ {input.command}</p>}
+                    {output && <pre className="text-xs font-mono bg-black/40 rounded p-2 mt-2 max-h-[120px] overflow-y-auto whitespace-pre-wrap">{output.slice(0, 1500)}</pre>}
+                  </div>
+                )
+              }
+              return (
+                <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${isUser ? 'bg-violet-600 text-white' : 'bg-white/10 text-white border border-white/10'}`}>
+                    <p className="whitespace-pre-wrap">{d.text || d.part?.text || JSON.stringify(d).slice(0, 800)}</p>
+                    <p className="text-[10px] opacity-60 mt-1">{new Date(e.createdAt).toLocaleTimeString()} • {e.type}</p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-          <p className="text-xs text-panel-muted mt-2">Host path <code className="font-mono bg-panel-bg px-1 rounded">{hostPath}</code> is injected into task context. The agent runs isolated in its Docker workspace; host files are bridged via import when you “Link to Aurex”.</p>
+          {/* Composer — like aurex.sflbk.com */}
+          <div className="mt-3 flex gap-2 shrink-0">
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+              placeholder="Ask follow-up… (Shift+Enter for newline)"
+              className="input-field flex-1 !py-2.5"
+            />
+            <button onClick={sendMessage} disabled={!chatInput.trim() || sending} className="btn-accent !px-5 disabled:opacity-40">
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <span className="flex items-center gap-1.5"><Terminal size={14} /> Send</span>}
+            </button>
+          </div>
+          <p className="text-xs text-panel-muted mt-2">Host path <code className="font-mono bg-panel-bg px-1 rounded">{hostPath}</code> • Agent runs in isolated Docker, host bridged via “Link to Aurex”</p>
         </div>
       )}
 

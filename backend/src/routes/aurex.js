@@ -185,8 +185,27 @@ router.post('/bridge/import', requireRole('admin', 'operator'), async (req, res)
   if (!st.isDirectory()) return res.status(400).json({ error: 'hostPath must be a directory' });
 
   try {
-    // 1. Create Aurex project
-    const projRes = await proxyToAurex(req, '/api/projects', { method: 'POST', body: { name: projectName || resolved.split('/').pop() || 'Host Project', description: description || `Imported from host ${resolved}` } });
+    // 1. Create Aurex project — handle 409 (workspace_destroyed or import in progress)
+    let projRes = await proxyToAurex(req, '/api/projects', { method: 'POST', body: { name: projectName || resolved.split('/').pop() || 'Host Project', description: description || `Imported from host ${resolved}` } });
+    if (projRes.status === 409) {
+      const errMsg = (projRes.data?.error || '').toLowerCase();
+      // If workspace destroyed, ensure workspace then retry once
+      if (errMsg.includes('workspace_destroyed')) {
+        try { await proxyToAurex(req, '/api/workspaces/ensure', { method: 'POST', body: {} }); } catch {}
+        projRes = await proxyToAurex(req, '/api/projects', { method: 'POST', body: { name: projectName || resolved.split('/').pop() || 'Host Project', description: description || `Imported from host ${resolved}` } });
+      }
+      // If another import in progress, try to reuse existing project with same name or list and return first
+      if (projRes.status === 409 && errMsg.includes('another import')) {
+        const list = await proxyToAurex(req, '/api/projects').catch(() => ({ status: 500, data: [] }));
+        const existing = Array.isArray(list.data) ? list.data.find(p => (p.name || '').toLowerCase() === (projectName || resolved.split('/').pop() || '').toLowerCase()) : null;
+        if (existing) {
+          return res.status(200).json({ project: existing, hostPath: resolved, message: 'Reusing existing project (import busy)' });
+        }
+        // Try with uniquified name
+        const altName = `${projectName || resolved.split('/').pop() || 'Host Project'} ${Date.now().toString().slice(-4)}`;
+        projRes = await proxyToAurex(req, '/api/projects', { method: 'POST', body: { name: altName, description: description || `Imported from host ${resolved}` } });
+      }
+    }
     if (projRes.status >= 400) return res.status(projRes.status).json(projRes.data);
     const project = projRes.data;
 
@@ -265,6 +284,27 @@ router.get('/runs/:id/events', async (req, res) => {
 router.post('/runs/:id/abort', requireRole('admin', 'operator'), async (req, res) => {
   try {
     const r = await proxyToAurex(req, `/api/runs/${req.params.id}/abort`, { method: 'POST', body: {} });
+    res.status(r.status).json(r.data);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.post('/runs/:id/messages', requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const r = await proxyToAurex(req, `/api/runs/${req.params.id}/messages`, { method: 'POST', body: req.body });
+    res.status(r.status).json(r.data);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.post('/runs/:id/questions', requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const r = await proxyToAurex(req, `/api/runs/${req.params.id}/questions`, { method: 'POST', body: req.body });
+    res.status(r.status).json(r.data);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.post('/runs/:id/retry', requireRole('admin', 'operator'), async (req, res) => {
+  try {
+    const r = await proxyToAurex(req, `/api/runs/${req.params.id}/retry`, { method: 'POST', body: {} });
     res.status(r.status).json(r.data);
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
