@@ -54,8 +54,14 @@ fi
 info "Installing system dependencies..."
 if [[ "$PM" == "apt" ]]; then
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
-  apt-get install -y -qq curl wget git nginx ca-certificates gnupg lsb-release sqlite3 cron sudo ufw 2>&1 | tail -5
+  # disable known-broken third-party repos that block apt update (openproject packager.io on jammy)
+  if grep -rq "packager.io.*openproject" /etc/apt/sources.list.d 2>/dev/null; then
+    warn "Temporarily disabling broken openproject repo for install..."
+    sed -i 's/^/#/' /etc/apt/sources.list.d/*openproject* 2>/dev/null || true
+  fi
+  # don't fail on third-party repo errors
+  apt-get update -qq 2>&1 | grep -v "does not have a Release file" | tail -5 || true
+  apt-get install -y -qq curl wget git nginx ca-certificates gnupg lsb-release sqlite3 cron sudo ufw 2>&1 | tail -5 || apt-get install -y curl wget git nginx ca-certificates gnupg lsb-release sqlite3 cron sudo 2>&1 | tail -5 || true
   # Node 20 via Nodesource if node missing or <18
   NEED_NODE=0
   if ! command -v node >/dev/null 2>&1; then NEED_NODE=1
@@ -64,8 +70,8 @@ if [[ "$PM" == "apt" ]]; then
   fi
   if [[ $NEED_NODE -eq 1 ]]; then
     info "Installing Node.js 20..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
-    apt-get install -y -qq nodejs
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1 || true
+    apt-get install -y -qq nodejs 2>&1 | tail -5 || apt-get install -y nodejs 2>&1 | tail -5 || true
   fi
 else
   yum install -y epel-release 2>&1 | tail -2 || true
