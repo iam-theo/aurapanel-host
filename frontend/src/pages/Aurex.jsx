@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Bot, Folder, Play, Square, RefreshCw, Cpu, FileCode, Terminal, Layers, Clock, Check, AlertCircle, Loader2, ExternalLink, Copy } from 'lucide-react'
+import { Bot, Folder, Play, Square, RefreshCw, Cpu, FileCode, Terminal, Layers, Clock, Check, AlertCircle, Loader2, ExternalLink, Copy, Shield, Activity, Server, Package, ScrollText } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBytes } from '../lib/utils'
 
@@ -16,6 +16,9 @@ export default function Aurex() {
   const [activeRun, setActiveRun] = useState(null)
   const [events, setEvents] = useState([])
   const [workspace, setWorkspace] = useState(null)
+  const [serverMode, setServerMode] = useState(true)
+  const [serverCtx, setServerCtx] = useState(null)
+  const [capabilities, setCapabilities] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [chatInput, setChatInput] = useState('')
@@ -58,16 +61,26 @@ export default function Aurex() {
     try { const d = await api.get('/aurex/workspaces/me'); setWorkspace(d) } catch {}
   }
 
+  const loadServerContext = async () => {
+    try { const d = await api.get('/aurex/server-context'); setServerCtx(d) } catch {}
+  }
+  const loadCapabilities = async () => {
+    try { const d = await api.get('/aurex/capabilities'); setCapabilities(d) } catch {}
+  }
+
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      await Promise.allSettled([loadHostPath(hostPath), loadProjects(), loadModels(), loadWorkspace()])
+      await Promise.allSettled([loadHostPath(hostPath), loadProjects(), loadModels(), loadWorkspace(), loadServerContext(), loadCapabilities()])
       setLoading(false)
     }
     init()
     const t = setInterval(loadProjects, 15000)
-    return () => clearInterval(t)
+    const t2 = setInterval(() => { if (serverMode) loadServerContext() }, 20000)
+    return () => { clearInterval(t); clearInterval(t2) }
   }, [])
+
+  useEffect(() => { if (serverMode) loadServerContext() }, [serverMode])
 
   useEffect(() => {
     if (selectedProject) loadProjectDetail(selectedProject)
@@ -111,8 +124,8 @@ export default function Aurex() {
   const createRun = async () => {
     if (!selectedProject || !task.trim()) return toastMsg('Select project and enter task')
     try {
-      const r = await api.post('/aurex/runs', { projectId: selectedProject, task: task.trim(), model, hostPath })
-      toastMsg(`Run queued: ${r.id?.slice(0, 8)}`)
+      const r = await api.post('/aurex/runs', { projectId: selectedProject, task: task.trim(), model, hostPath, serverMode })
+      toastMsg(`Run queued: ${r.id?.slice(0, 8)}${serverMode ? ' — server-mode (full context)' : ''}`)
       setTask('')
       setActiveRun(r.id)
       loadProjectDetail(selectedProject)
@@ -152,16 +165,58 @@ export default function Aurex() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center"><Bot size={20} className="text-white" /></div>
           <div>
-            <h1 className="text-xl font-bold">Aurex — Coding Agent</h1>
-            <p className="text-xs text-panel-muted">Select host path where the agent runs its development processes</p>
+            <h1 className="text-xl font-bold">Aurex — Coding Agent <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 ml-2">Full Server Mode</span></h1>
+            <p className="text-xs text-panel-muted">Entire server: apps · services · logs · updates — Aurex sees everything</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border cursor-pointer" style={{ borderColor: serverMode ? '#8b5cf6' : '#2a2f45', background: serverMode ? 'rgba(139,92,246,0.12)' : 'transparent' }}>
+            <input type="checkbox" checked={serverMode} onChange={e => setServerMode(e.target.checked)} className="accent-violet-600" />
+            <Server size={12} /> Server Mode
+          </label>
           <span className={`status-badge ${workspace ? 'online' : 'offline'}`}>{workspace ? 'Workspace ready' : 'Workspace not ready'}</span>
-          <button className="btn-ghost" onClick={() => { loadProjects(); loadHostPath(hostPath); loadWorkspace() }}><RefreshCw size={16} /></button>
+          <button className="btn-ghost" onClick={() => { loadProjects(); loadHostPath(hostPath); loadWorkspace(); loadServerContext() }}><RefreshCw size={16} /></button>
           <a href="https://aurex.sflbk.com" target="_blank" rel="noreferrer" className="btn-ghost"><ExternalLink size={14} /> Aurex Web</a>
         </div>
       </div>
+
+      {/* Server-wide live snapshot — only in Server Mode */}
+      {serverMode && serverCtx && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="panel-card !p-3">
+            <p className="text-xs text-panel-muted flex items-center gap-1"><Activity size={12} /> Apps</p>
+            <p className="text-lg font-bold">{Array.isArray(serverCtx.pm2) ? serverCtx.pm2.length : '—'} <span className="text-xs font-normal text-panel-muted">PM2</span></p>
+            <p className="text-xs text-panel-muted truncate">{Array.isArray(serverCtx.pm2) ? serverCtx.pm2.filter(a=>a.status==='online').length + ' online · ' + serverCtx.pm2.filter(a=>a.status!=='online').length + ' stopped' : ''}</p>
+            <p className="text-xs text-panel-muted truncate">Docker: {Array.isArray(serverCtx.docker) ? serverCtx.docker.length : '—'} containers</p>
+          </div>
+          <div className="panel-card !p-3">
+            <p className="text-xs text-panel-muted flex items-center gap-1"><Server size={12} /> Services</p>
+            <p className="text-lg font-bold">{serverCtx.services?.filter(s=>s.active==='active').length ?? '—'}<span className="text-xs font-normal text-panel-muted">/{serverCtx.services?.length ?? '?'} active</span></p>
+            <p className="text-xs text-panel-muted truncate">{serverCtx.services?.filter(s=>s.active!=='active').map(s=>s.name).join(', ') || 'all nominal'}</p>
+            <p className="text-xs text-panel-muted">Nginx sites: {serverCtx.nginx?.count ?? 0}</p>
+          </div>
+          <div className="panel-card !p-3">
+            <p className="text-xs text-panel-muted flex items-center gap-1"><Package size={12} /> Updates</p>
+            <p className="text-xs text-panel-muted truncate max-w-full" title={String(serverCtx.updates || '').slice(0, 200)}>{serverCtx.updates ? String(serverCtx.updates).split('\n').length + ' lines' : 'checking…'}</p>
+            <p className="text-xs truncate">{String(serverCtx.updates || '').split('\n').slice(0,2).join(' · ').slice(0,80) || 'apt upgradable preview'}</p>
+            <a href="#updates" className="text-xs text-violet-400 hover:underline">/api/updates</a>
+          </div>
+          <div className="panel-card !p-3">
+            <p className="text-xs text-panel-muted flex items-center gap-1"><ScrollText size={12} /> System</p>
+            <p className="text-xs font-mono truncate">{serverCtx.system?.hostname} · {serverCtx.system?.uptime}</p>
+            <p className="text-xs text-panel-muted">CPU {serverCtx.system?.cpu?.load ?? '?'}% · MEM {serverCtx.system?.memory?.pct ?? '?'}%</p>
+            <p className="text-xs text-panel-muted truncate">{serverCtx.system?.disk?.[0]?.mount}: {serverCtx.system?.disk?.[0]?.use}% used</p>
+          </div>
+        </div>
+      )}
+      {serverMode && capabilities && (
+        <div className="panel-card !py-2 !px-3 flex items-center gap-2 flex-wrap text-xs">
+          <Shield size={12} className="text-emerald-400" /> <span className="font-medium">Panel tools:</span> {capabilities.tools} · {capabilities.capabilities?.join(' · ')}
+          <span className="ml-auto flex gap-1">
+            <a href="/api/aurex/server-context" target="_blank" className="text-violet-400 hover:underline">server-context</a> · <a href="/api/aurex/tools" target="_blank" className="text-violet-400 hover:underline">tools</a> · <a href="/api/logs" target="_blank" className="text-violet-400 hover:underline">logs</a> · <a href="/api/updates" target="_blank" className="text-violet-400 hover:underline">updates</a>
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Host Path Selector */}
@@ -198,7 +253,7 @@ export default function Aurex() {
           <h3 className="font-semibold flex items-center gap-2 mb-3"><Layers size={16} className="text-panel-purple" /> Projects & Tasks</h3>
           {/* Run Task — always visible */}
           <div className="bg-panel-accent/5 border border-panel-accent/20 rounded-lg p-4 mb-4">
-            <p className="text-sm font-semibold text-panel-text flex items-center gap-2 mb-3"><Play size={14} className="text-panel-accent" /> Run Task — Agent will work in the selected host path</p>
+            <p className="text-sm font-semibold text-panel-text flex items-center gap-2 mb-3"><Play size={14} className="text-panel-accent" /> Run Task — {serverMode ? 'Full server context will be injected' : 'Agent will work in the selected host path'}</p>
             <div className="space-y-3">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div>
@@ -216,7 +271,19 @@ export default function Aurex() {
                   </div>
                 </div>
               </div>
-              <textarea value={task} onChange={e => setTask(e.target.value)} placeholder="Describe the task for the coding agent… e.g. 'Fix the nginx config for /home/panel/apps/myapp, add tests, and commit'" rows={4} className="input-field resize-none" />
+              <textarea value={task} onChange={e => setTask(e.target.value)} placeholder={serverMode ? "Describe task with full server awareness… e.g. 'Check all PM2 apps for errors in logs, restart failed ones, check apt updates and report, fix nginx site example.com'" : "Describe the task for the coding agent… e.g. 'Fix the nginx config for /home/panel/apps/myapp, add tests, and commit'"} rows={4} className="input-field resize-none" />
+              {serverMode && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {[
+                    'Audit all apps, services and report health',
+                    'Tail logs for errors in last hour and fix',
+                    'Check apt updates and apply security patches',
+                    'Restart failed PM2/Docker services',
+                  ].map(p => (
+                    <button key={p} onClick={() => setTask(p)} className="text-xs px-2 py-1 rounded-full bg-violet-600/15 border border-violet-600/25 hover:bg-violet-600/25">{p}</button>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <select value={model} onChange={e => setModel(e.target.value)} className="input-field !py-2 text-xs flex-1">
                   <option value="opencode/big-pickle">opencode/big-pickle</option>
