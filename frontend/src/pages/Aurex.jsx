@@ -229,6 +229,49 @@ export default function Aurex() {
 
   const isWorking = runStatus==='running' || runStatus==='queued'
 
+  function CleanMessage({ text }) {
+    if (!text) return null
+    // hide internal JSON like {"part":{"type":"step-finish"...}}
+    if (text.trim().startsWith('{"part"') || text.includes('"type":"step-finish"') || text.includes('"type":"step_start"')) return null
+    const codeBlocks = text.split(/(```[\s\S]*?```)/g)
+    return (
+      <div className="space-y-2 leading-relaxed">
+        {codeBlocks.map((block, bi) => {
+          if (block.startsWith('```')) {
+            const inner = block.replace(/^```[a-zA-Z0-9]*\n?/, '').replace(/```$/, '').trim()
+            if (!inner) return null
+            // detect PID table style and render as structured rows
+            const lines = inner.split('\n').filter(l=>l.trim())
+            const isPidBlock = lines.some(l=>l.includes('PID') && l.includes('User'))
+            if (isPidBlock) {
+              return (
+                <div key={bi} className="rounded-xl overflow-hidden border border-white/10 bg-[#0f1115]">
+                  {lines.map((ln, li) => {
+                    const isHeader = ln.toLowerCase().includes('pid') && ln.toLowerCase().includes('user')
+                    return <div key={li} className={`px-3 py-1.5 text-xs font-mono flex gap-4 ${isHeader ? 'bg-white/[0.04] text-white/40 border-b border-white/5' : 'text-white/65'}`}><span className="whitespace-pre">{ln}</span></div>
+                  })}
+                </div>
+              )
+            }
+            return <pre key={bi} className="rounded-xl bg-[#0f1115] border border-white/10 p-3 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre">{inner}</pre>
+          }
+          // inline formatting: **bold** and `code` and newlines
+          const parts = block.split(/(\*\*.*?\*\*|`[^`]+`)/g)
+          return (
+            <p key={bi} className="whitespace-pre-wrap break-words">
+              {parts.map((p, pi) => {
+                if (p.startsWith('**') && p.endsWith('**') && p.length>4) return <strong key={pi} className="font-semibold text-white">{p.slice(2,-2)}</strong>
+                if (p.startsWith('`') && p.endsWith('`') && p.length>2) return <code key={pi} className="px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10 text-violet-200 text-xs font-mono">{p.slice(1,-1)}</code>
+                // handle simple line breaks and bullet-like lines
+                return <span key={pi}>{p}</span>
+              })}
+            </p>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#0f1115]">
       {toast && <div className="fixed top-5 right-5 z-50 bg-[#1a1d24] border border-violet-500/30 text-white px-4 py-3 rounded-xl text-sm shadow-2xl flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />{toast}</div>}
@@ -327,8 +370,9 @@ export default function Aurex() {
               )}
               {events.map((e, i) => {
                 const d = e.data || {}
-                const isUser = d.role === 'user' || (!d.part?.tool && d.text && e.type === 'message')
-                const isTool = !!d.part?.tool
+                // never show internal step plumbing as chat — filter step_start/step_finish and raw JSON
+                const rawType = String(e.type || d.type || d.part?.type || '').toLowerCase()
+                if (rawType.includes('step_') || rawType.includes('step-') || d.part?.type === 'step-start' || d.part?.type === 'step-finish') return null
                 const isQuestion = e.type === 'question' || d.questions
                 if (isQuestion && d.questions) {
                   return (
@@ -347,6 +391,7 @@ export default function Aurex() {
                     </div>
                   )
                 }
+                const isTool = !!d.part?.tool
                 if (isTool) {
                   const part = d.part
                   const input = part?.state?.input || {}
@@ -372,13 +417,15 @@ export default function Aurex() {
                     </div>
                   )
                 }
-                const text = d.text || d.part?.text || (typeof d === 'string' ? d : '') || JSON.stringify(d).slice(0, 800)
-                if (!text) return null
+                const isUser = d.role === 'user' || (!d.part?.tool && d.text && e.type === 'message')
+                const rawText = d.text || d.part?.text || (typeof d === 'string' ? d : '')
+                // drop empty or internal JSON like {"part":{"type":"step-finish"}}
+                if (!rawText || rawText.trim().startsWith('{"part"') || rawText.includes('"type":"step-finish"')) return null
                 return (
                   <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
                     {!isUser && <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shrink-0 mt-1"><Bot size={13} className="text-white" /></div>}
-                    <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-violet-600 text-white shadow shadow-violet-600/20' : 'bg-[#1e2128] text-white/85 border border-white/[0.06]'}`}>
-                      {text}
+                    <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${isUser ? 'bg-violet-600 text-white shadow shadow-violet-600/20' : 'bg-[#1e2128] text-white border border-white/[0.06] shadow-sm'}`}>
+                      <CleanMessage text={rawText} />
                       <div className={`text-[10px] mt-2 flex items-center gap-1 ${isUser ? 'text-white/60 justify-end' : 'text-white/25'}`}><Clock size={10} />{new Date(e.createdAt).toLocaleTimeString()} · {e.type}</div>
                     </div>
                     {isUser && <div className="w-7 h-7 rounded-full bg-white text-[#0f1115] flex items-center justify-center shrink-0 mt-1 text-xs font-semibold">You</div>}
