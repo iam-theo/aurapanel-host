@@ -6,6 +6,9 @@ import { createHmac, randomBytes } from 'crypto';
 import { requireRole } from '../lib/auth.js';
 import { logger } from '../lib/logger.js';
 import { run } from '../lib/exec.js';
+import { buildServerContext as coreBuildServerContext } from '../core/aurex/engine.js';
+import { PANEL_TOOLS as CORE_TOOLS, getCapabilities as coreGetCapabilities } from '../core/aurex/tools/index.js';
+import { INFRASTRUCTURE_INSTRUCTION } from '../core/aurex/prompts/index.js';
 
 const router = Router();
 const AUREX_API = process.env.AUREX_API_URL || 'http://localhost:4010';
@@ -367,8 +370,7 @@ router.post('/runs', requireRole('admin', 'operator'), async (req, res) => {
       parts.push(`[SERVER CONTEXT: Full server snapshot — you are the server operator. You can act on apps, services, logs, updates via the ServerPanel API at /api/* . Snapshot:\n${summary}\n]`);
       parts.push(`[PANEL TOOLS: ${PANEL_TOOLS.map(t => `${t.id} (${t.method} ${t.path})`).join(', ').slice(0, 3000)}]`);
       parts.push(`[INSTRUCTIONS: You have full server access. Use /api/aurex/server-context for live data, /api/aurex/tools for tool list, /api/logs/* and /api/updates for monitoring. Ask via /api/aurex/host-paths to browse any path under / . After completing the task, ALWAYS summarize what you did, highlight any bottlenecks (high CPU/mem/disk, stopped services, pending security updates), and proactively suggest 2-3 next steps as follow-up questions — e.g. "Want me to apply security updates?", "Should I investigate the service bottleneck?", "Shall I tail the error logs?". Gain intent by asking the user to confirm before applying mutating actions.]`);
-      // Infrastructure Intelligence output contract — enforce professional report structure for audits
-      parts.push(`[INFRASTRUCTURE REPORT CONTRACT: For any infrastructure audit, diagnostic, monitoring, deployment investigation or server-health analysis, you MUST follow observe→collect→interpret→classify→summarize→recommend→optionally execute→verify. Never dump raw 80-line command output; summarize. Use structure: # Infrastructure Audit Report (Host/Uptime/Load/RAM/Disk), ## System Status (Overall + table Resource|Status|Severity), ## PM2 Analysis (|App|Status|Memory|CPU|Restarts|Uptime|Notes| + PM2 Issues with observed/assessment/severity/recommendation), ## Docker Containers + Issues, ## Systemd Running/Failed Services, ## System Bottlenecks (CRITICAL/HIGH/MEDIUM/LOW/NORMAL), ## Memory Analysis if RAM>85%, ## Log Analysis (INFO/WARNING/ERROR/CRITICAL/SECURITY/NOISE, distinguish Observed vs Inference vs Confirmed), ## Incidents if needed (ID/Severity/Component/Detection/Evidence/Analysis/Root Cause/Impact/Recommended Action/Verification), ## Follow-up Suggestions (prioritized actionable), then ## Aurex Assessment (Overall condition, highest priority, next) + ## Next Actions (numbered). Classify severity evidence-based, suppress duplicates, prioritize security/data-loss/outage. UI-friendly markdown tables, bold findings, checkmarks. Never claim root cause without evidence; use Observed/Likely/Not yet confirmed.]`);
+      parts.push(INFRASTRUCTURE_INSTRUCTION);
     } catch (e) {
       parts.push(`[SERVER CONTEXT: unavailable: ${e.message}]`);
     }
@@ -470,22 +472,25 @@ router.get('/models', async (req, res) => {
 // --- Server-wide context + tools for Aurex (full environment awareness) ---
 router.get('/server-context', async (req, res) => {
   try {
-    const ctx = await buildServerContext();
+    const ctx = await coreBuildServerContext();
     res.json(ctx);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/tools', (req, res) => {
-  res.json({ tools: PANEL_TOOLS, total: PANEL_TOOLS.length, hint: 'Aurex: call these via panel with the same auth token (Bearer or cookie). All POST need x-csrf-token + role admin/operator.' });
+  // Core layer is now source of truth — PANEL_TOOLS delegates to CORE_TOOLS
+  res.json({ tools: CORE_TOOLS, total: CORE_TOOLS.length, hint: 'Aurex core layer: call via panel with same auth (Bearer/cookie). POST needs x-csrf-token + admin/operator.' });
 });
 
 router.get('/capabilities', (req, res) => {
+  const coreCaps = coreGetCapabilities();
   res.json({
     server: 'ServerPanel',
-    aurex: { api: AUREX_API },
-    capabilities: ['monitor:apps', 'monitor:services', 'monitor:logs', 'monitor:updates', 'control:pm2', 'control:docker', 'control:nginx', 'control:services', 'control:files', 'control:cron', 'control:backups', 'control:packages'],
+    layer: 'core/aurex',
+    aurex: { api: AUREX_API, hostMode: process.env.AUREX_HOST_MODE === 'true' },
+    capabilities: coreCaps.capabilities,
     hostRoots: HOST_ROOTS,
-    tools: PANEL_TOOLS.length,
+    tools: CORE_TOOLS.length,
     endpoints: {
       serverContext: '/api/aurex/server-context',
       tools: '/api/aurex/tools',
