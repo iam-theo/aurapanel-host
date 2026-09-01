@@ -173,8 +173,8 @@ export default function Aurex() {
   const handleComposerSend = async () => {
     const text = composer.trim()
     if (!text || sending) return
-    // if previous run finished, start a fresh run instead of messaging a dead one
-    const shouldNewRun = !activeRun || runStatus==='completed' || runStatus==='failed' || runStatus==='aborted'
+    // Session chat history — like opencode/ChatGPT: keep same activeRun session unless user clicks New chat
+    const shouldNewRun = !activeRun
     setSending(true)
     try {
       if (shouldNewRun) {
@@ -187,9 +187,11 @@ export default function Aurex() {
         setEvents(prev => [...prev, { type: 'message', data: { role: 'user', text }, createdAt: new Date().toISOString() }])
         loadProjectDetail(pid)
       } else {
+        // continue same session — worker will re-activate if status was completed/failed
         await api.post(`/aurex/runs/${activeRun}/messages`, { text })
         setEvents(prev => [...prev, { type: 'message', data: { role: 'user', text }, createdAt: new Date().toISOString() }])
         setComposer('')
+        if (runStatus==='completed' || runStatus==='failed' || runStatus==='aborted') setRunStatus('running')
         toastMsg('Message sent')
       }
     } catch (e) { toastMsg(e.message) } finally { setSending(false) }
@@ -606,7 +608,7 @@ export default function Aurex() {
                     <p className="text-sm font-semibold text-white">{runStatus==='completed' ? 'Run completed — what next?' : 'Run stopped — try a follow-up'}</p>
                     <span className="ml-auto text-xs text-white/30">{events.length} steps</span>
                   </div>
-                  <p className="text-xs text-white/50 leading-relaxed">Aurex has stopped. Based on live server signals, here are smart next steps — these will start a <b className="text-white/70">new run</b> with full server context.</p>
+                  <p className="text-xs text-white/50 leading-relaxed">Aurex is ready for follow-up — these continue the <b className="text-white/70">same session</b> (history preserved). Click New chat to start a fresh session.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {recommendations.map(r=> (
                       <button key={r.title} onClick={()=>{ setComposer(r.prompt); setTimeout(()=> textareaRef.current?.focus(), 50)}} className="text-left p-3 rounded-xl bg-[#0f1115] border border-white/10 hover:border-violet-500/30 hover:bg-[#1a1d24] transition-colors group">
@@ -635,7 +637,7 @@ export default function Aurex() {
               value={composer}
               onChange={e=>setComposer(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleComposerSend() } }}
-              placeholder={isWorking ? 'Aurex is working… you can queue a follow-up' : activeRun && runStatus==='completed' ? 'Ask follow-up — will start a new run…' : 'Ask Aurex anything — audit services, fix logs, check updates…'}
+              placeholder={isWorking ? 'Aurex is working… you can queue a follow-up' : activeRun ? 'Ask follow-up — same session (history kept)…' : 'Ask Aurex anything — audit services, fix logs, check updates…'}
               rows={1}
               disabled={isWorking && false}
               className="w-full bg-transparent px-4 pt-3.5 pb-1 text-sm text-white placeholder:text-white/30 focus:outline-none resize-none max-h-[160px]"
