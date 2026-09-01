@@ -347,10 +347,17 @@ router.post('/bridge/import', requireRole('admin', 'operator'), async (req, res)
 router.post('/runs', requireRole('admin', 'operator'), async (req, res) => {
   const { projectId, task, model, hostPath, serverMode = false, includeLogs = false, includeUpdates = false } = req.body || {};
   let enrichedTask = task;
+  const isHostMode = process.env.AUREX_HOST_MODE === 'true' || process.env.AUREX_EXEC_MODE === 'host';
   const parts = [];
   if (hostPath && isAllowedHostPath(hostPath)) {
     parts.push(`[HOST PATH: ${resolve('/', hostPath)}]`);
-    parts.push(`[WORKSPACE: Isolated Aurex workspace. Host files at ${hostPath} available via /api/aurex/host-paths.]`);
+    if (isHostMode || serverMode) {
+      parts.push(`[WORKSPACE: HOST MODE — you are running DIRECTLY ON THE HOST SERVER (not isolated). WORKDIR is ${resolve('/', hostPath)} on the host. Full filesystem is accessible: /home, /var/log, /etc/nginx, /var/www, /tmp, /opt, and / itself. Use host tools (systemctl, journalctl, pm2, docker, apt, nginx -t, cat /var/log/*) and ServerPanel APIs at /api/* . Do NOT claim you are isolated.]`);
+    } else {
+      parts.push(`[WORKSPACE: Isolated Aurex workspace. Host files at ${hostPath} available via /api/aurex/host-paths.]`);
+    }
+  } else if (isHostMode && serverMode) {
+    parts.push(`[WORKSPACE: HOST MODE — no hostPath provided, using host root. You are on the host server with full access.]`);
   }
   if (serverMode) {
     // Inject full server context snapshot
