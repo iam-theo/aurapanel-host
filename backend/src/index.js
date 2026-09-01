@@ -29,6 +29,7 @@ import { auditMiddleware } from './lib/audit.js';
 import { requireAuth, issueCsrfToken, csrfMiddleware, ensureDefaultAdmin } from './lib/auth.js';
 import { globalLimiter, writeLimiter } from './middleware/rateLimit.js';
 import { startAlertLoop } from './lib/alerts.js';
+import { startAuditLoop } from './core/aurex/auditor.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -139,6 +140,7 @@ app.use((err, req, res, _next) => {
 // --- Boot ---
 await ensureDefaultAdmin();
 startAlertLoop();
+startAuditLoop(); // deep continuous: services/projects/logs/nginx/updates everywhere every 5m
 
 app.listen(PORT, () => {
   logger.info(`Server Panel API running on port ${PORT} (version ${API_VERSION})`);

@@ -9,6 +9,7 @@ import { run } from '../lib/exec.js';
 import { buildServerContext as coreBuildServerContext } from '../core/aurex/engine.js';
 import { PANEL_TOOLS as CORE_TOOLS, getCapabilities as coreGetCapabilities } from '../core/aurex/tools/index.js';
 import { INFRASTRUCTURE_INSTRUCTION } from '../core/aurex/prompts/index.js';
+import { getLatestReport, getHistory, runDeepAudit } from '../core/aurex/auditor.js';
 
 const router = Router();
 const AUREX_API = process.env.AUREX_API_URL || 'http://localhost:4010';
@@ -501,6 +502,28 @@ router.get('/capabilities', (req, res) => {
       health: '/api/health/detailed',
     }
   });
+});
+
+// Deep continuous audit — everywhere (services/projects/logs/nginx/updates) every 5m
+router.get('/audit/latest', (req, res) => {
+  const r = getLatestReport();
+  if (!r) return res.status(202).json({ status: 'warming up — first deep audit in ~15s' });
+  res.json(r);
+});
+router.get('/audit/history', (req, res) => {
+  res.json({ history: getHistory(), total: getHistory().length });
+});
+router.post('/audit/run', requireRole('admin','operator'), async (req, res) => {
+  try {
+    const r = await runDeepAudit();
+    req.audit?.('aurex.audit_run', 'aurex/audit', { id: r.id, overall: r.overall });
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.get('/audit/report', (req, res) => {
+  const r = getLatestReport();
+  if (!r) return res.status(202).json({ error: 'no report yet' });
+  res.type('text/markdown').send(r.markdown);
 });
 
 // Allow Aurex agent to call panel read-only endpoints via a bridged helper (same auth)
