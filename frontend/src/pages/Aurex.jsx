@@ -274,16 +274,14 @@ export default function Aurex() {
 
   function CleanMessage({ text }) {
     if (!text) return null
-    // hide internal JSON like {"part":{"type":"step-finish"...}}
     if (text.trim().startsWith('{"part"') || text.includes('"type":"step-finish"') || text.includes('"type":"step_start"')) return null
     const codeBlocks = text.split(/(```[\s\S]*?```)/g)
     return (
-      <div className="space-y-2 leading-relaxed">
+      <div className="space-y-3 leading-relaxed">
         {codeBlocks.map((block, bi) => {
           if (block.startsWith('```')) {
             const inner = block.replace(/^```[a-zA-Z0-9]*\n?/, '').replace(/```$/, '').trim()
             if (!inner) return null
-            // detect PID table style and render as structured rows
             const lines = inner.split('\n').filter(l=>l.trim())
             const isPidBlock = lines.some(l=>l.includes('PID') && l.includes('User'))
             if (isPidBlock) {
@@ -298,18 +296,72 @@ export default function Aurex() {
             }
             return <pre key={bi} className="rounded-xl bg-[#0f1115] border border-white/10 p-3 text-xs font-mono text-white/70 overflow-x-auto whitespace-pre">{inner}</pre>
           }
-          // inline formatting: **bold** and `code` and newlines
-          const parts = block.split(/(\*\*.*?\*\*|`[^`]+`)/g)
-          return (
-            <p key={bi} className="whitespace-pre-wrap break-words">
-              {parts.map((p, pi) => {
-                if (p.startsWith('**') && p.endsWith('**') && p.length>4) return <strong key={pi} className="font-semibold text-white">{p.slice(2,-2)}</strong>
-                if (p.startsWith('`') && p.endsWith('`') && p.length>2) return <code key={pi} className="px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10 text-violet-200 text-xs font-mono">{p.slice(1,-1)}</code>
-                // handle simple line breaks and bullet-like lines
-                return <span key={pi}>{p}</span>
-              })}
-            </p>
-          )
+          // Parse markdown headings, tables, and inline formatting for infrastructure reports
+          const lines = block.split('\n')
+          const elements = []
+          let tableBuffer = []
+          const flushTable = () => {
+            if (tableBuffer.length === 0) return
+            // filter separator lines like |---|---|
+            const rows = tableBuffer.filter(l => !l.trim().match(/^\|?\s*[-|:\s]+\s*\|?\s*$/))
+            if (rows.length === 0) { tableBuffer = []; return }
+            const headerCells = rows[0].split('|').map(c=>c.trim()).filter(Boolean)
+            const bodyRows = rows.slice(1).map(r => r.split('|').map(c=>c.trim()).filter(Boolean))
+            elements.push(
+              <div key={`tbl-${bi}-${elements.length}`} className="overflow-x-auto rounded-xl border border-white/10 bg-[#0f1115]">
+                <table className="w-full text-xs">
+                  <thead><tr className="bg-white/[0.04] border-b border-white/5">{headerCells.map((h, hi)=><th key={hi} className="px-3 py-2 text-left font-semibold text-white/50 whitespace-nowrap">{h}</th>)}</tr></thead>
+                  <tbody>{bodyRows.map((row, ri)=><tr key={ri} className="border-b border-white/[0.03] last:border-0">{row.map((cell, ci)=>{
+                    const isSeverity = headerCells[ci]?.toLowerCase().includes('severity')
+                    const sev = cell.toUpperCase()
+                    const sevCls = isSeverity ? (sev==='CRITICAL'?'text-red-400 font-semibold': sev==='HIGH'?'text-amber-300 font-semibold': sev==='MEDIUM'?'text-yellow-300': sev==='LOW'?'text-emerald-300': sev==='NORMAL'?'text-emerald-300':'text-white/70') : 'text-white/70'
+                    const isBold = cell.startsWith('**') && cell.endsWith('**')
+                    return <td key={ci} className={`px-3 py-2 whitespace-nowrap ${isBold ? 'font-semibold text-white' : sevCls}`}>{isBold ? cell.slice(2,-2) : cell}</td>
+                  })}</tr>)}</tbody>
+                </table>
+              </div>
+            )
+            tableBuffer = []
+          }
+          lines.forEach((line, li) => {
+            const trimmed = line.trim()
+            // table detection: line contains | and next line is separator or already buffering
+            const isTableRow = trimmed.includes('|') && (trimmed.startsWith('|') || trimmed.includes('|'))
+            const isSeparator = trimmed.match(/^\|?\s*[-|:\s]+\s*\|?\s*$/)
+            if (isTableRow || isSeparator) {
+              tableBuffer.push(line)
+              // if next line is not table, flush
+              const next = lines[li+1]
+              if (!next || (!next.includes('|') && !next.trim().match(/^\|?\s*[-|:\s]+\s*\|?\s*$/))) flushTable()
+              return
+            }
+            if (tableBuffer.length) flushTable()
+            if (trimmed.startsWith('# ')) {
+              elements.push(<h1 key={`h-${bi}-${li}`} className="text-lg font-bold text-white mt-2">{trimmed.slice(2).replace(/\*\*/g,'')}</h1>)
+            } else if (trimmed.startsWith('## ')) {
+              elements.push(<h2 key={`h-${bi}-${li}`} className="text-[15px] font-semibold text-white mt-3 border-b border-white/5 pb-1">{trimmed.slice(3).replace(/\*\*/g,'')}</h2>)
+            } else if (trimmed.startsWith('### ')) {
+              elements.push(<h3 key={`h-${bi}-${li}`} className="text-sm font-semibold text-white/90 mt-2">{trimmed.slice(4).replace(/\*\*/g,'')}</h3>)
+            } else if (trimmed.startsWith('#### ')) {
+              elements.push(<h4 key={`h-${bi}-${li}`} className="text-xs font-semibold tracking-widest uppercase text-white/50 mt-2">{trimmed.slice(5).replace(/\*\*/g,'')}</h4>)
+            } else if (trimmed === '' || trimmed === '---') {
+              elements.push(<div key={`sp-${bi}-${li}`} className="h-1" />)
+            } else {
+              // inline **bold** and `code`
+              const parts = line.split(/(\*\*.*?\*\*|`[^`]+`)/g)
+              elements.push(
+                <p key={`p-${bi}-${li}`} className="whitespace-pre-wrap break-words text-[13px] text-white/80">
+                  {parts.map((p, pi) => {
+                    if (p.startsWith('**') && p.endsWith('**') && p.length>4) return <strong key={pi} className="font-semibold text-white">{p.slice(2,-2)}</strong>
+                    if (p.startsWith('`') && p.endsWith('`') && p.length>2) return <code key={pi} className="px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10 text-violet-200 text-xs font-mono">{p.slice(1,-1)}</code>
+                    return <span key={pi}>{p}</span>
+                  })}
+                </p>
+              )
+            }
+          })
+          if (tableBuffer.length) flushTable()
+          return <div key={bi} className="space-y-1">{elements}</div>
         })}
       </div>
     )
