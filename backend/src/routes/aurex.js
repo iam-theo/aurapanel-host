@@ -366,7 +366,7 @@ router.post('/runs', requireRole('admin', 'operator'), async (req, res) => {
       }, null, 2).slice(0, 8000);
       parts.push(`[SERVER CONTEXT: Full server snapshot — you are the server operator. You can act on apps, services, logs, updates via the ServerPanel API at /api/* . Snapshot:\n${summary}\n]`);
       parts.push(`[PANEL TOOLS: ${PANEL_TOOLS.map(t => `${t.id} (${t.method} ${t.path})`).join(', ').slice(0, 3000)}]`);
-      parts.push(`[INSTRUCTIONS: You have full server access. Use /api/aurex/server-context for live data, /api/aurex/tools for tool list, /api/logs/* and /api/updates for monitoring. Ask via /api/aurex/host-paths to browse any path under / .]`);
+      parts.push(`[INSTRUCTIONS: You have full server access. Use /api/aurex/server-context for live data, /api/aurex/tools for tool list, /api/logs/* and /api/updates for monitoring. Ask via /api/aurex/host-paths to browse any path under / . After completing the task, ALWAYS summarize what you did, highlight any bottlenecks (high CPU/mem/disk, stopped services, pending security updates), and proactively suggest 2-3 next steps as follow-up questions — e.g. "Want me to apply security updates?", "Should I investigate the service bottleneck?", "Shall I tail the error logs?". Gain intent by asking the user to confirm before applying mutating actions.]`);
     } catch (e) {
       parts.push(`[SERVER CONTEXT: unavailable: ${e.message}]`);
     }
