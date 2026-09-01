@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Bot, RefreshCw, Clock, Loader2, ExternalLink, Shield, Activity, Server, Package, ScrollText, Sparkles, Globe, Zap, ArrowUpRight, MessageSquare, Plus, Square, Send, ChevronDown, Wrench, FileCode, Terminal, Search, AlertTriangle, CheckCircle2, XCircle, Lightbulb, ArrowRight } from 'lucide-react'
+import { Bot, RefreshCw, Clock, Loader2, ExternalLink, Shield, Activity, Server, Package, ScrollText, Sparkles, Globe, Zap, ArrowUpRight, MessageSquare, Plus, Square, Send, ChevronDown, Wrench, FileCode, Terminal, Search, AlertTriangle, CheckCircle2, XCircle, Lightbulb, ArrowRight, ListTodo, Check, Circle, SkipForward, CornerDownLeft } from 'lucide-react'
 import { api } from '../lib/api'
 
 export default function Aurex() {
@@ -22,6 +22,8 @@ export default function Aurex() {
   const [composer, setComposer] = useState('')
   const [sending, setSending] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [questionProgress, setQuestionProgress] = useState({}) // requestId -> { idx, answers: string[][], done }
+  const [customQuestionInput, setCustomQuestionInput] = useState({}) // requestId -> idx -> text
   const eventRef = useRef(null)
   const textareaRef = useRef(null)
   const esRef = useRef(null)
@@ -198,7 +200,48 @@ export default function Aurex() {
   }
   const answerQuestions = async (requestId, answers) => {
     if (!activeRun) return
-    try { await api.post(`/aurex/runs/${activeRun}/questions`, { requestId, answers }); toastMsg('Answers sent') } catch (e) { toastMsg(e.message) }
+    try {
+      await api.post(`/aurex/runs/${activeRun}/questions`, { requestId, answers });
+      toastMsg('Answers sent')
+      // render answers back to chat so agent sees them and user has confirmation
+      const qEvent = events.find(ev => ev.data?.requestId === requestId)
+      const qs = qEvent?.data?.questions || []
+      const summary = answers.map((a, idx) => {
+        const q = qs[idx]
+        const label = a && a.length ? a.join(', ') : '(skipped)'
+        return `${q?.header || `Q${idx+1}`}: ${label}`
+      }).join('  ·  ')
+      setEvents(prev => [...prev, { type: 'message', data: { role: 'user', text: `Answered: ${summary}` }, createdAt: new Date().toISOString() }])
+      setQuestionProgress(p => ({ ...p, [requestId]: { ...(p[requestId]||{idx:0,answers:[]}), done: true } }))
+    } catch (e) { toastMsg(e.message) }
+  }
+  const handleQuestionOption = (requestId, questions, optLabel, customText) => {
+    const cur = questionProgress[requestId] || { idx: 0, answers: questions.map(()=>[]) }
+    const idx = cur.idx
+    const q = questions[idx]
+    const answer = customText ? [customText] : [optLabel]
+    const nextAnswers = [...cur.answers]
+    nextAnswers[idx] = answer
+    // if not last question, advance to next; else send all
+    if (idx < questions.length - 1) {
+      setQuestionProgress(p => ({ ...p, [requestId]: { idx: idx+1, answers: nextAnswers, done: false } }))
+    } else {
+      // last — send full matrix, filling any skipped with []
+      const final = nextAnswers.map(a => a || [])
+      answerQuestions(requestId, final)
+    }
+  }
+  const handleQuestionSkip = (requestId, questions) => {
+    const cur = questionProgress[requestId] || { idx: 0, answers: questions.map(()=>[]) }
+    const idx = cur.idx
+    const nextAnswers = [...cur.answers]
+    nextAnswers[idx] = []
+    if (idx < questions.length - 1) {
+      setQuestionProgress(p => ({ ...p, [requestId]: { idx: idx+1, answers: nextAnswers, done: false } }))
+    } else {
+      const final = nextAnswers.map(a => a || [])
+      answerQuestions(requestId, final)
+    }
   }
   const newChat = () => { esRef.current?.close(); setActiveRun(null); setRunStatus(null); setEvents([]); setComposer('') }
 
@@ -375,19 +418,48 @@ export default function Aurex() {
                 if (rawType.includes('step_') || rawType.includes('step-') || d.part?.type === 'step-start' || d.part?.type === 'step-finish') return null
                 const isQuestion = e.type === 'question' || d.questions
                 if (isQuestion && d.questions) {
+                  const prog = questionProgress[d.requestId] || { idx: 0, answers: d.questions.map(()=>[]), done: false }
+                  if (prog.done) {
+                    return (
+                      <div key={i} className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3 flex items-center gap-2 text-xs text-emerald-300">
+                        <CheckCircle2 size={13} /> Answered — {d.questions.length} question{d.questions.length>1?'s':''} sent to Aurex
+                      </div>
+                    )
+                  }
+                  const q = d.questions[prog.idx]
+                  const isLast = prog.idx === d.questions.length - 1
+                  const customVal = customQuestionInput[`${d.requestId}:${prog.idx}`] || ''
                   return (
                     <div key={i} className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4">
-                      <p className="text-xs font-semibold text-amber-300 mb-2 flex items-center gap-1.5"><AlertTriangle size={12} />Aurex needs input</p>
-                      {d.questions.map((q, qi)=> (
-                        <div key={qi} className="mb-3 last:mb-0">
-                          <p className="text-sm text-white">{q.question}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {q.options?.map((opt, oi)=> (
-                              <button key={oi} onClick={()=>answerQuestions(d.requestId, [[opt.label]])} className="text-xs px-3 py-1.5 rounded-full bg-white text-[#0f1115] hover:bg-white/90 font-medium">{opt.label}</button>
-                            ))}
-                          </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-amber-300 flex items-center gap-1.5"><AlertTriangle size={12} />Aurex asks {d.questions.length>1 ? `(${prog.idx+1}/${d.questions.length})` : ''}</p>
+                        {d.questions.length>1 && <span className="text-[11px] text-white/30">Step {prog.idx+1} of {d.questions.length}</span>}
+                      </div>
+                      <p className="text-[11px] font-medium tracking-widest uppercase text-white/40 mb-1">{q.header}</p>
+                      <p className="text-sm text-white leading-relaxed">{q.question}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {q.options?.map((opt, oi)=> (
+                          <button key={oi} onClick={()=>handleQuestionOption(d.requestId, d.questions, opt.label)} className="text-xs px-3 py-1.5 rounded-full bg-white text-[#0f1115] hover:bg-white/90 font-medium inline-flex items-center gap-1">{opt.label} <span className="text-[10px] text-black/40 hidden sm:inline">— {opt.description?.slice(0,40)}</span></button>
+                        ))}
+                      </div>
+                      {q.custom && (
+                        <div className="mt-3 flex gap-2">
+                          <input value={customVal} onChange={e=>setCustomQuestionInput(p=>({ ...p, [`${d.requestId}:${prog.idx}`]: e.target.value }))} onKeyDown={e=>{ if(e.key==='Enter' && customVal.trim()) handleQuestionOption(d.requestId, d.questions, null, customVal.trim()) }} placeholder="Type your own answer..." className="flex-1 bg-[#0f1115] border border-white/10 rounded-full px-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/30" />
+                          <button disabled={!customVal.trim()} onClick={()=>handleQuestionOption(d.requestId, d.questions, null, customVal.trim())} className="px-3 py-1.5 rounded-full bg-violet-600 text-white text-xs font-medium disabled:opacity-30 inline-flex items-center gap-1"><CornerDownLeft size={12} />Send</button>
                         </div>
-                      ))}
+                      )}
+                      <div className="mt-3 flex items-center gap-2">
+                        <button onClick={()=>handleQuestionSkip(d.requestId, d.questions)} className="text-xs px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-white/60 hover:text-white inline-flex items-center gap-1"><SkipForward size={11} />Skip</button>
+                        {prog.idx>0 && <button onClick={()=>setQuestionProgress(p=>({ ...p, [d.requestId]: { ...prog, idx: prog.idx-1 }}))} className="text-xs px-2 py-1 rounded-full text-white/40 hover:text-white">← Back</button>}
+                        <span className="ml-auto text-[11px] text-white/25">{isLast ? 'Last question — will send all answers' : 'Answer to continue'}</span>
+                      </div>
+                      {d.questions.length>1 && (
+                        <div className="mt-3 flex gap-1">
+                          {d.questions.map((_, qi)=> (
+                            <span key={qi} className={`h-1 flex-1 rounded-full ${qi < prog.idx ? 'bg-emerald-500/60' : qi===prog.idx ? 'bg-amber-400' : 'bg-white/10'}`} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 }
@@ -395,25 +467,64 @@ export default function Aurex() {
                 if (isTool) {
                   const part = d.part
                   const input = part?.state?.input || {}
-                  const output = part?.state?.output || part?.state?.metadata?.output || ''
+                  let output = part?.state?.output || part?.state?.metadata?.output || ''
                   const title = part?.state?.title || part?.tool || 'tool'
-                  const icon = title.toLowerCase().includes('read') ? FileCode : title.toLowerCase().includes('bash') || title.toLowerCase().includes('exec') ? Terminal : title.toLowerCase().includes('grep') || title.toLowerCase().includes('search') ? Search : Wrench
+                  const toolName = String(part.tool || '').toLowerCase()
+                  const isTodo = toolName.includes('todo') || title.toLowerCase().includes('todo') || (typeof output === 'string' && output.trim().startsWith('[') && output.includes('"content"') && output.includes('"status"'))
+                  let todos = null
+                  if (isTodo && typeof output === 'string') {
+                    try {
+                      const parsed = JSON.parse(output)
+                      if (Array.isArray(parsed) && parsed.length && parsed[0]?.content) todos = parsed
+                      else if (parsed?.todos && Array.isArray(parsed.todos)) todos = parsed.todos
+                    } catch {}
+                    // also handle output that is already array stringified with newlines
+                    if (!todos && typeof output === 'string') {
+                      try {
+                        const maybe = output.slice(0, 8000).trim()
+                        if (maybe.startsWith('[')) {
+                          const p2 = JSON.parse(maybe)
+                          if (Array.isArray(p2)) todos = p2
+                        }
+                      } catch {}
+                    }
+                  }
+                  const icon = isTodo ? ListTodo : title.toLowerCase().includes('read') ? FileCode : title.toLowerCase().includes('bash') || title.toLowerCase().includes('exec') ? Terminal : title.toLowerCase().includes('grep') || title.toLowerCase().includes('search') ? Search : Wrench
                   const Icon = icon
                   return (
                     <div key={i} className="rounded-2xl bg-[#1a1d24] border border-white/[0.06] overflow-hidden">
                       <div className="px-4 py-3 flex items-center gap-2.5">
-                        <span className="w-7 h-7 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center"><Icon size={13} className="text-white/60" /></span>
-                        <span className="text-sm font-medium text-white/80">{title}</span>
-                        <span className="text-[11px] font-mono text-white/25 truncate flex-1">{input.filePath || input.command || input.pattern || ''}</span>
+                        <span className="w-7 h-7 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center"><Icon size={13} className={isTodo ? 'text-violet-300' : 'text-white/60'} /></span>
+                        <span className="text-sm font-medium text-white/80">{isTodo ? 'Plan' : title}</span>
+                        <span className="text-[11px] font-mono text-white/25 truncate flex-1">{isTodo ? `${todos ? todos.length : ''} tasks` : (input.filePath || input.command || input.pattern || '')}</span>
                         <span className="text-[11px] text-white/20">{new Date(e.createdAt).toLocaleTimeString()}</span>
                       </div>
-                      {(input.filePath || input.command) && (
+                      {(input.filePath || input.command) && !isTodo && (
                         <div className="mx-3 mb-3 rounded-xl bg-[#0f1115] border border-white/5 px-3 py-2">
                           {input.filePath && <p className="text-xs font-mono text-white/40 truncate">{input.filePath}</p>}
                           {input.command && <p className="text-xs font-mono text-violet-300">$ {input.command}</p>}
                         </div>
                       )}
-                      {output && <pre className="mx-3 mb-3 rounded-xl bg-[#0f1115] border border-white/5 p-3 text-xs font-mono text-white/55 max-h-[180px] overflow-y-auto whitespace-pre-wrap">{output.slice(0, 2500)}</pre>}
+                      {isTodo && todos ? (
+                        <div className="mx-3 mb-3 rounded-xl bg-[#0f1115] border border-white/5 p-2 space-y-1">
+                          {todos.map((t, ti) => {
+                            const status = String(t.status || t.state || '').toLowerCase()
+                            const isCompleted = status === 'completed' || status === 'done' || t.completed
+                            const isProgress = status === 'in_progress' || status === 'in-progress' || status === 'running'
+                            return (
+                              <div key={ti} className={`flex items-start gap-2 px-2 py-1.5 rounded-lg ${isCompleted ? 'bg-emerald-500/5' : isProgress ? 'bg-amber-500/5' : 'bg-white/[0.02]'}`}>
+                                <span className={`mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : isProgress ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                                  {isCompleted ? <Check size={11} /> : isProgress ? <Loader2 size={10} className="animate-spin" /> : <Circle size={10} />}
+                                </span>
+                                <span className={`text-xs leading-relaxed flex-1 ${isCompleted ? 'line-through text-white/35' : isProgress ? 'text-amber-200/80' : 'text-white/65'}`}>{t.content || t.text || t.title || JSON.stringify(t).slice(0,120)}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 capitalize ${isCompleted ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : isProgress ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-white/5 border-white/10 text-white/30'}`}>{status || 'pending'}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : output ? (
+                        <pre className="mx-3 mb-3 rounded-xl bg-[#0f1115] border border-white/5 p-3 text-xs font-mono text-white/55 max-h-[180px] overflow-y-auto whitespace-pre-wrap">{String(output).slice(0, 2500)}</pre>
+                      ) : null}
                     </div>
                   )
                 }
