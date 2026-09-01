@@ -413,10 +413,13 @@ export default function Aurex() {
             <div className="rounded-2xl bg-[#1a1d24] border border-white/10 p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-white/60">Recent chats</span>
-                <select value={selectedProject || ''} onChange={e=>setSelectedProject(e.target.value)} className="bg-[#0f1115] border border-white/10 rounded-full px-2.5 py-1 text-xs text-white">
-                  <option value="">Select project</option>
-                  {projects.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <div className="flex items-center gap-1.5">
+                  {runs.length>0 && <button onClick={async()=>{ if(!confirm('Clear all chat history? This deletes all projects and runs for this panel user.')) return; try{ await api.del('/aurex/history'); toastMsg('History cleared'); setActiveRun(null); setRunStatus(null); setEvents([]); loadProjects(); } catch(e){ toastMsg(e.message) } }} className="text-[11px] px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/15">Clear all</button>}
+                  <select value={selectedProject || ''} onChange={e=>setSelectedProject(e.target.value)} className="bg-[#0f1115] border border-white/10 rounded-full px-2.5 py-1 text-xs text-white">
+                    <option value="">Select project</option>
+                    {projects.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="space-y-1 max-h-[220px] overflow-y-auto">
                 {runs.slice(0, 10).map(r=> (

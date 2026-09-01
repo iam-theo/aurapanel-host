@@ -533,6 +533,23 @@ router.get('/audit/report', (req, res) => {
   res.type('text/markdown').send(r.markdown);
 });
 
+// Clear all chat history for panel user (projects + runs + events)
+router.delete('/history', requireRole('admin'), async (req, res) => {
+  try {
+    const { Client } = await import('pg');
+    const dbUrl = process.env.DATABASE_URL || 'postgresql://aurex:aurex@localhost:5435/aurex';
+    const c = new Client({ connectionString: dbUrl });
+    await c.connect();
+    const u = await c.query('SELECT id FROM "User" WHERE email=$1', [process.env.PANEL_AUREX_EMAIL || 'panel@server-panel.local']);
+    if (!u.rows.length) { await c.end(); return res.json({ deleted: 0, message: 'no panel user' }); }
+    const userId = u.rows[0].id;
+    const del = await c.query('DELETE FROM "Project" WHERE "ownerId"=$1', [userId]);
+    await c.end();
+    req.audit?.('aurex.clear_history', 'aurex/history', { deletedProjects: del.rowCount });
+    res.json({ success: true, deletedProjects: del.rowCount });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Allow Aurex agent to call panel read-only endpoints via a bridged helper (same auth)
 router.post('/bridge/exec', requireRole('admin','operator'), async (req, res) => {
   const { tool, args } = req.body || {};
