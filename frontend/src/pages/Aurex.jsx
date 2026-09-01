@@ -395,7 +395,6 @@ export default function Aurex() {
               <span className={`hidden lg:inline-flex items-center gap-1 px-2.5 py-2 rounded-full text-xs border ${workspace ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${workspace?'bg-emerald-400':'bg-amber-400'} animate-pulse`} />{workspace?'Ready':'Pending'}</span>
             </div>
             <button onClick={() => { loadProjects(); if(selectedProject) loadProjectDetail(selectedProject); loadServerContext() }} className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center text-white/50 hover:text-white"><RefreshCw size={13} /></button>
-            <a href="https://aurex.sflbk.com" target="_blank" rel="noreferrer" className="hidden md:inline-flex w-8 h-8 rounded-full bg-white/[0.06] border border-white/10 items-center justify-center text-white/50 hover:text-white"><ExternalLink size={13} /></a>
           </div>
         </div>
         {serverMode && serverCtx && (
