@@ -23,6 +23,7 @@ export default function Cron() {
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [page, setPage] = useState(1)
+  const [q, setQ] = useState('')
 
   const load = async () => {
     try {
@@ -51,8 +52,6 @@ export default function Cron() {
       notify.info(d.output?.split('\n').slice(-3).join(' ') || 'Job executed')
     } catch (e) { notify.error(e.message) }
   }
-
-  const [q, setQ] = useState('')
 
   return (
     <div className="p-6 space-y-4">
