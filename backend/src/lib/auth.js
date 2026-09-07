@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import { randomUUID } from 'crypto';
 import { getOrCreateJwtSecret } from './secrets.js';
 import { logger } from './logger.js';
 
@@ -91,12 +92,74 @@ export async function ensureDefaultAdmin() {
 
 export function signToken(payload) {
   const secret = getOrCreateJwtSecret();
-  return jwt.sign(payload, secret, { expiresIn: JWT_EXPIRY });
+  return jwt.sign({ ...payload, jti: randomUUID() }, secret, { expiresIn: JWT_EXPIRY });
 }
 
 export function verifyToken(token) {
   const secret = getOrCreateJwtSecret();
-  return jwt.verify(token, secret);
+  const decoded = jwt.verify(token, secret);
+  if (decoded?.jti && revokedJtis.has(decoded.jti)) {
+    // Clean up if the token is already past expiry.
+    if (decoded.exp && decoded.exp * 1000 < Date.now()) revokedJtis.delete(decoded.jti);
+    else throw new jwt.JsonWebTokenError('Token has been revoked');
+  }
+  return decoded;
+}
+
+// --- Session expiry helpers (single source of truth for cookie + client) ---
+export function parseExpiryToMs(label) {
+  const s = String(label || JWT_EXPIRY).trim();
+  const m = s.match(/^(\d+)\s*([smhd])$/i);
+  if (!m) return 12 * 60 * 60 * 1000;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === 's') return n * 1000;
+  if (unit === 'm') return n * 60 * 1000;
+  if (unit === 'h') return n * 60 * 60 * 1000;
+  return n * 24 * 60 * 60 * 1000;
+}
+
+export function getSessionMaxAgeMs() {
+  return parseExpiryToMs(process.env.JWT_EXPIRY || JWT_EXPIRY);
+}
+
+export function getTokenExpiryMs(token) {
+  try {
+    const decoded = jwt.decode(token);
+    if (decoded?.exp) return decoded.exp * 1000;
+  } catch {}
+  return Date.now() + getSessionMaxAgeMs();
+}
+
+// --- Token revocation (so logout actually kills Bearer tokens too) ---
+const revokedJtis = new Map(); // jti -> expiresAtMs
+
+export function revokeToken(token) {
+  try {
+    const decoded = jwt.decode(token);
+    if (decoded?.jti) {
+      const expMs = decoded.exp ? decoded.exp * 1000 : Date.now() + getSessionMaxAgeMs();
+      revokedJtis.set(decoded.jti, expMs);
+    }
+  } catch {}
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [jti, exp] of revokedJtis) {
+    if (exp <= now) revokedJtis.delete(jti);
+  }
+  if (revokedJtis.size > 10000) {
+    const oldest = [...revokedJtis.keys()].slice(0, revokedJtis.size - 10000);
+    for (const k of oldest) revokedJtis.delete(k);
+  }
+}, 5 * 60 * 1000).unref?.();
+
+// Constant-time-ish failure delay: prevents user-enumeration via timing
+// and slows credential-guessing even under the rate limit.
+export function loginFailureDelay() {
+  const ms = 400 + Math.floor(Math.random() * 400);
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 // Middleware: require valid JWT (Bearer or httpOnly cookie)
@@ -114,13 +177,18 @@ export function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
   const cookieToken = req.cookies?.panel_token;
   const token = (auth?.startsWith('Bearer ') ? auth.slice(7) : null) || cookieToken;
-  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  if (!token) return res.status(401).json({ error: 'Authentication required', code: 'NO_TOKEN' });
   try {
     const decoded = verifyToken(token);
     req.user = decoded;
+    req.token = token;
     next();
   } catch (e) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    const expired = e?.name === 'TokenExpiredError';
+    return res.status(401).json({
+      error: expired ? 'Session expired, please sign in again' : 'Invalid or expired token',
+      code: expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+    });
   }
 }
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { NotifyProvider } from './context/NotifyContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -26,9 +26,12 @@ const Integrations = lazy(() => import('./pages/Integrations.jsx'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <div className="p-8"><PageLoader label="Signing you in..." /></div>
   // If auth is disabled on backend, user will be 'dev' even without token — allow
-  if (!user) return <Navigate to="/login" replace />
+  // On refresh with no/invalid session, bounce to login and remember where
+  // the user was so a fresh sign-in can return them there.
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   return children
 }
 

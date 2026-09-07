@@ -29,10 +29,12 @@ import { metricsMiddleware, register } from './lib/metrics.js';
 import { auditMiddleware } from './lib/audit.js';
 import { requireAuth, issueCsrfToken, csrfMiddleware, ensureDefaultAdmin } from './lib/auth.js';
 import { globalLimiter, writeLimiter } from './middleware/rateLimit.js';
+import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { startAlertLoop } from './lib/alerts.js';
 import { startAuditLoop } from './core/aurex/auditor.js';
 
 const app = express();
+app.disable('x-powered-by');
 
 // Requests arrive via nginx on loopback; trust its X-Forwarded-For so req.ip
 // (and therefore rate-limits) reflect the real client instead of 127.0.0.1.
@@ -50,14 +52,22 @@ app.use(helmet({
 }));
 
 // --- CORS (allow Vite dev + same-origin via nginx) ---
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5180,http://127.0.0.1:5180').split(',').map(s => s.trim());
+// Locked down: only configured origins (or same-origin / non-browser calls
+// with no Origin header) are allowed. Previously any origin was reflected,
+// which would let an arbitrary site make credentialed requests if the
+// browser ever permitted it.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5180,http://127.0.0.1:5180').split(',').map(s => s.trim()).filter(Boolean);
+const allowAllOrigins = allowedOrigins.includes('*');
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true); // same-origin / curl / nginx proxy
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
-    return cb(null, true); // keep open for now; lock down via ALLOWED_ORIGINS in prod
+    if (allowAllOrigins) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, origin);
+    return cb(new Error('CORS origin not allowed'));
   },
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'Idempotency-Key'],
+  exposedHeaders: ['Retry-After', 'X-Idempotent-Replayed'],
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
@@ -111,6 +121,10 @@ const writePaths = ['/api/nginx', '/api/databases', '/api/backups', '/api/cron',
   '/api/v1/nginx', '/api/v1/databases', '/api/v1/backups', '/api/v1/cron', '/api/v1/users', '/api/v1/files', '/api/v1/services', '/api/v1/pm2', '/api/v1/docker', '/api/v1/integrations', '/api/v1/system'];
 app.use(writePaths, writeLimiter);
 
+// Idempotency for mutating APIs (after auth so the key is scoped to the user).
+// Login/logout/csrf are excluded inside the middleware itself.
+app.use(['/api', '/api/v1'], idempotencyMiddleware);
+
 // --- Versioned API mount (v1) + legacy /api mount ---
 function mountApi(prefix) {
   app.use(`${prefix}/system`, systemRoutes);
@@ -141,7 +155,8 @@ app.use((req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   logger.error('unhandled error', { error: err.message, stack: err.stack, path: req.path });
-  const status = err.status || err.statusCode || 500;
+  let status = err.status || err.statusCode || 500;
+  if (status === 500 && /cors/i.test(err.message || '')) status = 403;
   res.status(status).json({ error: err.message || 'Internal server error' });
 });
 
