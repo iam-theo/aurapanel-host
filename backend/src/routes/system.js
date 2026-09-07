@@ -138,6 +138,23 @@ router.get('/processes', async (req, res) => {
   }
 });
 
+// POST /api/system/processes/:pid/kill?signal=TERM — admin only, audited
+router.post('/processes/:pid/kill', requireRole('admin'), (req, res) => {
+  const pid = parseInt(req.params.pid, 10);
+  if (!Number.isInteger(pid) || pid <= 1) return res.status(400).json({ error: 'Invalid PID (refusing pid ≤ 1)' });
+  if (pid === process.pid) return res.status(400).json({ error: 'Refusing to kill the panel itself' });
+  const signal = String(req.query.signal || 'TERM').toUpperCase();
+  if (!['TERM', 'KILL', 'HUP', 'INT'].includes(signal)) return res.status(400).json({ error: 'Invalid signal (TERM|KILL|HUP|INT)' });
+  try {
+    process.kill(pid, `SIG${signal}`);
+    req.audit?.('system.kill', String(pid), { signal });
+    res.json({ success: true, pid, signal });
+  } catch (err) {
+    req.audit?.('system.kill', String(pid), { error: err.message }, 'failure');
+    res.status(400).json({ error: `kill ${pid}: ${err.message}` });
+  }
+});
+
 // POST /api/system/reboot — admin only, audited
 router.post('/reboot', requireRole('admin'), (req, res) => {
   req.audit?.('system.reboot', 'host', {});

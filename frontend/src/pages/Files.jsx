@@ -7,7 +7,6 @@ import {
 import { api } from '../lib/api'
 import { formatBytes } from '../lib/utils'
 import { useNotify } from '../context/NotifyContext'
-import { PageHeader } from '../components/ui.jsx'
 
 const CODE_EXT = ['js', 'jsx', 'ts', 'tsx', 'py', 'json', 'html', 'css', 'yml', 'yaml', 'md', 'sh', 'env', 'conf', 'sql', 'c', 'cpp', 'h', 'go', 'rb', 'php', 'txt', 'log', 'xml', 'vue', 'svelte', 'toml', 'ini', 'tf']
 const EXT_COLORS = {
@@ -304,17 +303,48 @@ export default function Files() {
     notify.success(`${action === 'copy' ? 'Copied' : 'Cut'} ${item.name} — navigate & paste`)
   }
 
+  const dirCount = items.filter(i => i.isDirectory).length
+  const fileItems = items.filter(i => !i.isDirectory)
+  const dirBytes = fileItems.reduce((a, i) => a + (i.size || 0), 0)
+
   return (
     <div className="p-6 space-y-4">
-      <PageHeader
-        icon={Folder}
-        title="File Manager"
-        subtitle={path}
-        stats={[
-          { value: items.length, label: 'items' },
-          ...(selected.size ? [{ value: selected.size, label: 'selected' }] : []),
-        ]}
-      />
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Subsystem / Filesystem <span className="text-panel-muted normal-case">{path}</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">File Manager</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
+              {items.length} ITEMS
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Folders</p>
+          <p className="font-mono text-2xl font-bold text-panel-blue mt-2">{dirCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">directories</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Files</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{fileItems.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{formatBytes(dirBytes)} listed</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Selected</p>
+          <p className="font-mono text-2xl font-bold text-panel-accent mt-2">{selected.size}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">for bulk ops</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Clipboard</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{clipboard?.paths.length || 0}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{clipboard ? `${clipboard.action} pending` : 'empty'}</p>
+        </div>
+      </div>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 bg-panel-card border border-panel-border rounded-lg p-2">
         <span className="flex items-center gap-1 text-xs text-panel-muted px-2">

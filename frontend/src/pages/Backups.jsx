@@ -16,6 +16,7 @@ export default function Backups() {
   const [confirmRestore, setConfirmRestore] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
 
   const load = async () => {
     try {
@@ -25,7 +26,11 @@ export default function Backups() {
   }
 
   useEffect(() => { load() }, [])
-  const filtered = q ? backups.filter(b => b.name.toLowerCase().includes(q.toLowerCase())) : backups
+  const filtered = backups.filter(b => {
+    if (typeFilter !== 'all' && b.type !== typeFilter) return false
+    if (!q) return true
+    return b.name.toLowerCase().includes(q.toLowerCase())
+  })
   const { paged, totalPages } = paginate(filtered, page, 9)
   const bulk = useBulk(paged, b => b.name)
   const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} backups?`, { title: 'Delete backups', confirmText: 'Delete' }))) return; for (const n of bulk.selected) try { await api.del(`/backups/${n}`) } catch {}; await load(); bulk.clear() }
@@ -47,17 +52,66 @@ export default function Backups() {
     } catch (e) { notify.error(e.message) }
   }
 
+  const totalBytes = backups.reduce((a, b) => a + (b.size || 0), 0)
+  const dbCount = backups.filter(b => b.type === 'database').length
+  const types = ['all', ...new Set(backups.map(b => b.type).filter(Boolean))]
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
         <div>
-          <p className="text-2xl font-bold">{backups.length}</p>
-          <p className="text-xs text-panel-muted">Backups stored</p>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Data / Snapshots <span className="text-panel-muted normal-case">retention vault</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">Backups</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
+              {backups.length} STORED
+            </span>
+          </div>
         </div>
-        <div className="flex gap-2 items-center">
-          <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="Search backups..." className="input-field !py-1.5 text-sm w-44" />
-          <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-          <button className="btn-accent" onClick={() => setShowCreate(true)}><Plus size={16} /> New Backup</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+          <button className="btn-accent !py-2" onClick={() => setShowCreate(true)}><Plus size={15} /> New Backup</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Archives</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{backups.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{formatBytes(totalBytes)} stored</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Database</p>
+          <p className="font-mono text-2xl font-bold text-panel-purple mt-2">{dbCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">dumps</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Directory</p>
+          <p className="font-mono text-2xl font-bold text-panel-blue mt-2">{backups.length - dbCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">tarballs</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Footprint</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{formatBytes(totalBytes).split(' ')[0]} <span className="text-xs text-panel-muted font-normal">{formatBytes(totalBytes).split(' ')[1] || ''}</span></p>
+          <p className="font-mono text-xs text-panel-muted mt-1">on disk</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-panel-card border border-panel-border flex-1 max-w-xl">
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="grep backup name..."
+            className="bg-transparent border-none outline-none font-mono text-xs text-panel-text placeholder:text-panel-muted w-full" />
+          <span className="px-1.5 rounded bg-panel-cardHover text-panel-muted font-mono text-[11px]">/</span>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {types.map(t => (
+            <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
+              className={`px-3 py-1.5 rounded-lg font-mono text-xs whitespace-nowrap capitalize ${typeFilter === t ? 'bg-panel-cardHover text-panel-accent font-semibold' : 'bg-panel-card text-panel-muted hover:text-panel-text border border-panel-border'}`}>
+              {t === 'all' ? `All (${backups.length})` : `${t} (${backups.filter(b => b.type === t).length})`}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -73,8 +127,8 @@ export default function Backups() {
                   {b.type === 'database' ? <Database size={20} className="text-panel-purple" /> : <Archive size={20} className="text-panel-blue" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium text-panel-text truncate">{b.name}</p>
-                  <p className="text-xs text-panel-muted">{formatBytes(b.size)} • {new Date(b.modified).toLocaleString()}</p>
+                  <p className="font-mono font-semibold text-[13px] text-panel-text truncate">{b.name}</p>
+                  <p className="text-[11px] text-panel-muted font-mono">{formatBytes(b.size)} • {new Date(b.modified).toLocaleString()}</p>
                 </div>
               </div>
             </div>

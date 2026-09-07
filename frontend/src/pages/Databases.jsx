@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
-import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner, PageHeader } from '../components/ui.jsx'
+import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -46,23 +46,59 @@ export default function Databases() {
 
   useEffect(() => { load() }, [])
 
+  const pgClusters = data.postgres || []
+  const pgDbCount = pgClusters.reduce((a, s) => a + (s.databases?.length || 0), 0)
+  const engines = [data.redis, data.memcached, data.rabbitmq, data.ollama].filter(Boolean)
+  const enginesUp = engines.filter(e => e.running).length
+
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        icon={Database}
-        title="Databases"
-        subtitle="postgres · redis · memcached · rabbitmq · ollama"
-        stats={[
-          { value: (data.postgres || []).length, label: 'pg clusters' },
-          { value: data.redis?.running ? 'up' : 'down', label: 'redis' },
-        ]}
-        actions={tab === 'postgres' && data.postgres?.length > 0 && (
-          <>
-            <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-            <button className="btn-accent" onClick={() => setCreateDb(data.postgres[0])}><Plus size={16} /> New Database</button>
-          </>
-        )}
-      />
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Data / Engines <span className="text-panel-muted normal-case">postgres · redis · memcached · rabbitmq · ollama</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">Databases</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
+              {pgDbCount} DBs
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {tab === 'postgres' && data.postgres?.length > 0 && (
+            <>
+              <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+              <button className="btn-accent !py-2" onClick={() => setCreateDb(data.postgres[0])}><Plus size={15} /> New Database</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">PG Clusters</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{pgClusters.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{pgDbCount} databases total</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Redis</p>
+          <p className={`font-mono text-2xl font-bold mt-2 ${data.redis?.running ? 'text-panel-green' : 'text-panel-red'}`}>
+            {data.redis?.running ? 'up' : 'down'}
+          </p>
+          <p className="font-mono text-xs text-panel-muted mt-1">v{data.redis?.version || '—'} · :{data.redis?.port || '—'}</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Aux Engines</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{enginesUp}<span className="text-panel-muted text-sm">/{engines.length}</span></p>
+          <p className="font-mono text-xs text-panel-muted mt-1">running</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">PG Users</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{pgClusters.reduce((a, s) => a + (s.users?.length || 0), 0)}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">roles total</p>
+        </div>
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-3 bg-panel-card p-2 rounded-lg border border-panel-border overflow-x-auto">
           {CATEGORIES.map(cat => (

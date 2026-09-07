@@ -84,13 +84,43 @@ export default function Marketplace() {
   const copyCmd = (cmd) => { navigator.clipboard?.writeText(cmd); notify.success('Copied install command') }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-panel-text">Package Marketplace</h1>
-          <p className="text-xs text-panel-muted">Install system packages with one click — apt, npm, docker and more</p>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Automation / Packages <span className="text-panel-muted normal-case">apt · system</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">Marketplace</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
+              {installed.total} INSTALLED
+            </span>
+          </div>
         </div>
-        <button className="btn-ghost" onClick={() => { loadMarketplace(); loadInstalled() }}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+        <button className="btn-ghost !py-2 font-mono text-xs" onClick={() => { loadMarketplace(); loadInstalled() }}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Catalog</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{data.total}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">packages</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Installed</p>
+          <p className="font-mono text-2xl font-bold text-panel-green mt-2">{installed.total}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">on host</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Categories</p>
+          <p className="font-mono text-2xl font-bold text-panel-blue mt-2">{data.categories.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">groups</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Working</p>
+          <p className="font-mono text-2xl font-bold text-panel-accent mt-2">{installing.size}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">installing</p>
+        </div>
       </div>
 
       <div className="flex gap-2 bg-panel-card p-1 rounded-lg border border-panel-border w-fit">
@@ -106,7 +136,7 @@ export default function Marketplace() {
           </div>
           <div className="flex gap-1 flex-wrap">
             {data.categories.map(c => (
-              <button key={c.id} onClick={() => setCategory(c.id)} className={`px-3 py-1.5 rounded-full text-xs border ${category === c.id ? 'bg-panel-accent border-panel-accent text-white' : 'bg-panel-card border-panel-border text-panel-muted hover:text-panel-text'}`}>{c.label}</button>
+              <button key={c.id} onClick={() => setCategory(c.id)} className={`px-3 py-1.5 rounded-full text-xs border ${category === c.id ? 'bg-panel-accent border-panel-accent text-panel-onaccent' : 'bg-panel-card border-panel-border text-panel-muted hover:text-panel-text'}`}>{c.label}</button>
             ))}
           </div>
         </div>

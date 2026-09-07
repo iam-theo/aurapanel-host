@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Play, Square, RotateCcw, Trash2, RefreshCw, Plus, Cpu, MemoryStick, GitBranch, Rocket } from 'lucide-react'
+import { Play, Square, RotateCcw, Trash2, RefreshCw, Rocket, ChevronRight, GitBranch } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
 import { formatBytes, relativeTime } from '../lib/utils'
@@ -8,13 +8,13 @@ import Modal, { Field, Button, ConfirmModal } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
-const STATUS_STYLES = {
-  online: 'bg-panel-green/15 text-panel-green',
-  stopped: 'bg-panel-red/15 text-panel-red',
-  errored: 'bg-panel-orange/15 text-panel-orange',
-  launching: 'bg-panel-yellow/15 text-panel-yellow',
+const STATUS_DOT = {
+  online: 'bg-panel-green',
+  stopped: 'bg-panel-muted',
+  errored: 'bg-panel-red',
+  launching: 'bg-panel-yellow',
 }
-const PAGE_SIZE = 6
+const PAGE_SIZE = 9
 
 export default function Applications() {
   const notify = useNotify()
@@ -25,6 +25,7 @@ export default function Applications() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const navigate = useNavigate()
 
   const load = async () => {
@@ -39,10 +40,13 @@ export default function Applications() {
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t) }, [])
 
   const filtered = useMemo(() => {
-    if (!q) return apps
-    const s = q.toLowerCase()
-    return apps.filter(a => a.name.toLowerCase().includes(s) || a.status?.toLowerCase().includes(s))
-  }, [apps, q])
+    return apps.filter(a => {
+      if (statusFilter !== 'all' && a.status !== statusFilter) return false
+      if (!q) return true
+      const s = q.toLowerCase()
+      return a.name.toLowerCase().includes(s) || a.status?.toLowerCase().includes(s)
+    })
+  }, [apps, q, statusFilter])
 
   const { paged, totalPages } = paginate(filtered, page, PAGE_SIZE)
   const bulk = useBulk(paged, a => a.name)
@@ -74,29 +78,81 @@ export default function Applications() {
   }
 
   const onlineCount = apps.filter(a => a.status === 'online').length
+  const stoppedCount = apps.filter(a => a.status === 'stopped').length
+  const totalMem = apps.reduce((a, x) => a + (x.memory || 0), 0)
+  const totalRestarts = apps.reduce((a, x) => a + (x.restarts || 0), 0)
+  const statuses = ['all', ...new Set(apps.map(a => a.status).filter(Boolean))]
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
         <div>
-          <p className="text-2xl font-bold">{onlineCount}<span className="text-panel-muted text-lg">/{apps.length}</span></p>
-          <p className="text-xs text-panel-muted">Applications online</p>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Runtime / Worker <span className="text-panel-muted normal-case">pm2</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">Applications</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase flex items-center gap-1.5 bg-panel-cardHover text-panel-green">
+              <span className="w-1.5 h-1.5 rounded-full bg-panel-green animate-pulse" />
+              {onlineCount}/{apps.length} ONLINE
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="Search apps..." className="input-field !py-1.5 text-sm w-48" />
-          <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-          <button className="btn-accent" onClick={() => setShowDeploy(true)}><Rocket size={16} /> Deploy App</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+          <button className="btn-accent !py-2" onClick={() => setShowDeploy(true)}><Rocket size={15} /> Deploy App</button>
         </div>
       </div>
 
-      {filtered.length > 0 && (
-        <div className="flex items-center gap-2 text-xs">
-          <label className="flex items-center gap-2 text-panel-muted">
-            <input type="checkbox" checked={paged.length > 0 && paged.every(a => bulk.has(a.name))} onChange={e => bulk.toggleAll(paged.map(a => a.name), e.target.checked)} /> Select page
-          </label>
-          <span className="text-panel-muted">• {filtered.length} total</span>
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Apps</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{apps.length} <span className="text-xs text-panel-muted font-normal">TOTAL</span></p>
+          <p className="font-mono text-xs mt-1">
+            <span className="text-panel-green font-semibold">{onlineCount} UP</span>
+            <span className="text-panel-muted"> / </span>
+            <span className="text-panel-red">{stoppedCount} DOWN</span>
+          </p>
+          <div className="h-1 bg-panel-cardHover rounded-full overflow-hidden mt-2">
+            <div className="h-full bg-panel-green" style={{ width: `${apps.length ? (onlineCount / apps.length) * 100 : 0}%` }} />
+          </div>
         </div>
-      )}
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Memory</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{formatBytes(totalMem).split(' ')[0]} <span className="text-xs text-panel-muted font-normal">{formatBytes(totalMem).split(' ')[1] || ''}</span></p>
+          <p className="font-mono text-xs text-panel-muted mt-1">across all apps</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Restarts</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{totalRestarts}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">cumulative</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Attention</p>
+          <p className={`font-mono text-2xl font-bold mt-2 ${apps.length - onlineCount ? 'text-panel-red' : 'text-panel-green'}`}>{apps.length - onlineCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{apps.length - onlineCount ? 'apps not online' : 'fleet healthy'}</p>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-col md:flex-row md:items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-panel-card border border-panel-border flex-1 max-w-xl">
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(1) }} placeholder="grep app name or status..."
+            className="bg-transparent border-none outline-none font-mono text-xs text-panel-text placeholder:text-panel-muted w-full" />
+          <span className="px-1.5 rounded bg-panel-cardHover text-panel-muted font-mono text-[11px]">/</span>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {statuses.map(s => (
+            <button key={s} onClick={() => { setStatusFilter(s); setPage(1) }}
+              className={`px-3 py-1.5 rounded-lg font-mono text-xs whitespace-nowrap capitalize ${statusFilter === s ? 'bg-panel-cardHover text-panel-accent font-semibold' : 'bg-panel-card text-panel-muted hover:text-panel-text border border-panel-border'}`}>
+              {s === 'all' ? `All (${apps.length})` : `${s} (${apps.filter(a => a.status === s).length})`}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {bulk.count > 0 && (
         <BulkBar count={bulk.count} onClear={bulk.clear} actions={[
@@ -109,49 +165,79 @@ export default function Applications() {
 
       {error && <div className="panel-card border-panel-red/40 text-panel-red text-sm">{error}</div>}
 
-      <div className="grid grid-cols-1 gap-3">
-        {paged.map(app => {
-          const online = app.status === 'online'
-          return (
-            <div key={app.name} className="panel-card panel-card-hover flex items-center gap-3">
-              <input type="checkbox" checked={bulk.has(app.name)} onChange={() => bulk.toggle(app.name)} className="shrink-0" />
-              <div className="flex items-center justify-between gap-4 flex-1 cursor-pointer min-w-0" onClick={() => navigate(`/applications/${app.name}`)}>
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${online ? 'bg-panel-green/15' : 'bg-panel-cardHover'}`}>
-                    <div className={`w-2.5 h-2.5 rounded-full ${online ? 'bg-panel-green' : 'bg-panel-muted'}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-panel-text truncate">{app.name}</p>
-                      <span className={`status-badge px-2 py-0.5 text-[11px] ${STATUS_STYLES[app.status] || 'bg-panel-muted/15 text-panel-muted'}`}>{app.status}</span>
-                    </div>
-                    <p className="text-xs text-panel-muted truncate mt-0.5">{app.script?.split('/').pop() || app.name} {app.port && `• port ${app.port}`}</p>
-                  </div>
-                </div>
-
-                <div className="hidden md:flex items-center gap-6 text-sm">
-                  <div className="text-center"><p className="flex items-center gap-1 text-panel-muted text-xs"><Cpu size={12} /> CPU</p><p className="font-medium">{app.cpu?.toFixed?.(1) || '0'}%</p></div>
-                  <div className="text-center"><p className="flex items-center gap-1 text-panel-muted text-xs"><MemoryStick size={12} /> Memory</p><p className="font-medium">{formatBytes(app.memory)}</p></div>
-                  <div className="text-center"><p className="text-panel-muted text-xs">Uptime</p><p className="font-medium">{relativeTime(app.uptime)}</p></div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {online
-                  ? <button className="btn !px-3 !py-1.5 !bg-panel-red/20 !text-panel-red" onClick={() => action(app.name, 'stop')} title="Stop"><Square size={14} /></button>
-                  : <button className="btn !px-3 !py-1.5 !bg-panel-green/20 !text-panel-green" onClick={() => action(app.name, 'start')} title="Start"><Play size={14} /></button>}
-                <button className="btn-ghost !px-3 !py-1.5" onClick={() => action(app.name, 'restart')} title="Restart"><RotateCcw size={14} /></button>
-                <button className="btn-ghost !px-3 !py-1.5 !bg-panel-red/10 !text-panel-red" onClick={() => setConfirmDel(app)} title="Delete"><Trash2 size={14} /></button>
-              </div>
-            </div>
-          )
-        })}
-        {paged.length === 0 && !loading && (
-          <div className="text-center py-16 text-panel-muted panel-card"><p className="text-lg">No applications</p><p className="text-sm mt-1">{q ? `No match for "${q}"` : 'Deploy your first app'}</p></div>
-        )}
+      <div className="panel-card p-0 overflow-hidden">
+        <div className="px-4 py-2.5 bg-panel-cardHover/50 border-b border-panel-border flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-panel-muted">Apps Table</span>
+          <span className="font-mono text-[11px] text-panel-muted">Showing {paged.length} of {filtered.length}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead>
+              <tr className="text-left text-[11px] text-panel-muted border-b border-panel-border bg-panel-bg/50 uppercase tracking-wider">
+                <th className="px-2 py-2.5"><input type="checkbox" className="accent-panel-accent" checked={paged.length > 0 && paged.every(a => bulk.has(a.name))} onChange={e => bulk.toggleAll(paged.map(a => a.name), e.target.checked)} /></th>
+                <th className="px-2 py-2.5 text-center w-10">State</th>
+                <th className="px-4 py-2.5 font-medium">App / Entry</th>
+                <th className="px-4 py-2.5 font-medium w-28">CPU %</th>
+                <th className="px-4 py-2.5 font-medium hidden md:table-cell">Memory</th>
+                <th className="px-4 py-2.5 font-medium hidden lg:table-cell">Uptime</th>
+                <th className="px-4 py-2.5 font-medium hidden xl:table-cell">Restarts</th>
+                <th className="px-4 py-2.5 font-medium text-right">Quick Ops</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map(app => {
+                const online = app.status === 'online'
+                return (
+                  <tr key={app.name}
+                    onClick={() => navigate(`/applications/${app.name}`)}
+                    className="border-b border-panel-border/50 cursor-pointer hover:bg-panel-cardHover/50 transition-colors">
+                    <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="accent-panel-accent" checked={bulk.has(app.name)} onChange={() => bulk.toggle(app.name)} />
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      <span className="inline-flex relative items-center justify-center" title={app.status}>
+                        <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[app.status] || 'bg-panel-muted'}`} />
+                        {online && <span className="absolute w-4 h-4 rounded-full bg-panel-green/20 animate-ping" />}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-[13px] font-semibold text-panel-text truncate">{app.name}</p>
+                      <p className="text-[11px] text-panel-muted truncate">{app.script?.split('/').pop() || app.name}{app.port ? ` · :${app.port}` : ''} · {app.status}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-14 h-1.5 bg-panel-cardHover rounded-full overflow-hidden">
+                          <div className="h-full bg-panel-blue rounded-full" style={{ width: `${Math.min(app.cpu || 0, 100)}%` }} />
+                        </div>
+                        <span className="text-xs text-panel-text">{app.cpu?.toFixed?.(1) || '0'}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-panel-muted hidden md:table-cell">{formatBytes(app.memory)}</td>
+                    <td className="px-4 py-3 text-xs text-panel-muted hidden lg:table-cell whitespace-nowrap">{relativeTime(app.uptime)}</td>
+                    <td className="px-4 py-3 text-xs text-panel-muted hidden xl:table-cell">{app.restarts ?? '—'}</td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex justify-end gap-1">
+                        {online
+                          ? <button className="btn !px-2 !py-1" title="Stop" onClick={() => action(app.name, 'stop')}><Square size={13} className="text-panel-red" /></button>
+                          : <button className="btn !px-2 !py-1" title="Start" onClick={() => action(app.name, 'start')}><Play size={13} className="text-panel-green" /></button>}
+                        <button className="btn !px-2 !py-1" title="Restart" onClick={() => action(app.name, 'restart')}><RotateCcw size={13} /></button>
+                        <button className="btn !px-2 !py-1" title="Open detail" onClick={() => navigate(`/applications/${app.name}`)}><ChevronRight size={13} /></button>
+                        <button className="btn !px-2 !py-1" title="Delete" onClick={() => setConfirmDel(app)}><Trash2 size={13} className="text-panel-red" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {paged.length === 0 && (
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-panel-muted text-sm font-sans">
+                  {loading ? 'Loading…' : q ? `No match for "${q}"` : 'No applications — deploy your first app'}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4"><Pagination page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} /></div>
       </div>
-
-      <Pagination page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
 
       <DeployModal open={showDeploy} onClose={() => setShowDeploy(false)} onDeployed={(m) => { notify.success(m); load() }} />
       <ConfirmModal

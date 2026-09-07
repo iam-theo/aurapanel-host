@@ -16,6 +16,7 @@ export default function Domains() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const load = async () => {
     try {
@@ -29,7 +30,12 @@ export default function Domains() {
 
   useEffect(() => { load() }, [])
 
-  const filtered = q ? sites.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || (s.serverNames||[]).join(' ').toLowerCase().includes(q.toLowerCase())) : sites
+  const filtered = sites.filter(s => {
+    if (statusFilter === 'enabled' && !s.enabled) return false
+    if (statusFilter === 'disabled' && s.enabled) return false
+    if (!q) return true
+    return s.name.toLowerCase().includes(q.toLowerCase()) || (s.serverNames || []).join(' ').toLowerCase().includes(q.toLowerCase())
+  })
   const { paged, totalPages } = paginate(filtered, page, 8)
   const bulk = useBulk(paged, s => s.name)
   const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} sites?`, { title: 'Delete sites', confirmText: 'Delete' }))) return; for (const n of bulk.selected) try { await api.del(`/nginx/sites/${n}`) } catch {}; await load(); bulk.clear() }
@@ -51,20 +57,69 @@ export default function Domains() {
     } catch (e) { notify.error(e.message) }
   }
 
+  const activeSites = sites.filter(s => s.enabled)
+  const sslCount = sites.filter(s => s.hasSsl).length
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div>
-            <p className="text-2xl font-bold">{sites.filter(s => s.enabled).length}<span className="text-panel-muted text-lg">/{sites.length}</span></p>
-            <p className="text-xs text-panel-muted">Active sites</p>
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
+            Network / HTTP <span className="text-panel-muted normal-case">nginx</span>
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold text-panel-text tracking-tight">Domains</h1>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
+              {activeSites.length}/{sites.length} ACTIVE
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-          <button className="btn-accent" onClick={() => setShowCreate(true)}><Plus size={16} /> New Site</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+          <button className="btn-accent !py-2" onClick={() => setShowCreate(true)}><Plus size={15} /> New Site</button>
         </div>
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Sites</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{sites.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">server blocks</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Enabled</p>
+          <p className="font-mono text-2xl font-bold text-panel-green mt-2">{activeSites.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">serving traffic</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">SSL</p>
+          <p className="font-mono text-2xl font-bold text-panel-blue mt-2">{sslCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">certificates</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Disabled</p>
+          <p className="font-mono text-2xl font-bold text-panel-muted mt-2">{sites.length - activeSites.length}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">parked</p>
+        </div>
+      </div>
+
+      {!selected && (
+        <div className="flex flex-col md:flex-row md:items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-panel-card border border-panel-border flex-1 max-w-xl">
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="grep site name or server_name..."
+              className="bg-transparent border-none outline-none font-mono text-xs text-panel-text placeholder:text-panel-muted w-full" />
+            <span className="px-1.5 rounded bg-panel-cardHover text-panel-muted font-mono text-[11px]">/</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {['all', 'enabled', 'disabled'].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-lg font-mono text-xs whitespace-nowrap capitalize ${statusFilter === s ? 'bg-panel-cardHover text-panel-accent font-semibold' : 'bg-panel-card text-panel-muted hover:text-panel-text border border-panel-border'}`}>
+                {s === 'all' ? `All (${sites.length})` : s === 'enabled' ? `Enabled (${activeSites.length})` : `Disabled (${sites.length - activeSites.length})`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <div className="panel-card border-panel-red/40 text-panel-red text-sm">{error}</div>}
 
@@ -80,8 +135,8 @@ export default function Domains() {
                       <Globe size={20} className="text-panel-blue" />
                     </div>
                     <div>
-                      <p className="font-semibold text-panel-text">{site.name}</p>
-                      <p className="text-xs text-panel-muted break-all">{site.serverNames.join(', ') || site.root}</p>
+                      <p className="font-mono font-semibold text-[13px] text-panel-text">{site.name}</p>
+                      <p className="text-[11px] text-panel-muted font-mono break-all">{site.serverNames.join(', ') || site.root}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
