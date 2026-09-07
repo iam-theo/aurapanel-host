@@ -20,6 +20,11 @@ router.get('/containers', (req, res) => {
     const containers = out.trim().split('\n').filter(Boolean).map(line => {
       try {
         const c = JSON.parse(line);
+        // compose project label -> stack grouping ("standalone" otherwise)
+        let project = 'standalone';
+        const labels = String(c.Labels || '');
+        const m = /(?:^|,)com\.docker\.compose\.project=([^,]+)/.exec(labels);
+        if (m) project = m[1];
         return {
           id: c.ID,
           name: c.Names,
@@ -28,6 +33,7 @@ router.get('/containers', (req, res) => {
           ports: c.Ports,
           state: c.State,
           createdAt: c.CreatedAt,
+          project,
         };
       } catch {
         return null;
@@ -130,15 +136,30 @@ router.get('/images', (req, res) => {
   }
 });
 
-// Networks
+// Networks (with first subnet per network via a single inspect call)
 router.get('/networks', (req, res) => {
   try {
     const out = run('docker network ls --format "{{.ID}}|{{.Name}}|{{.Driver}}|{{.Scope}}|{{.Internal}}" 2>&1', {});
-    const networks = out.trim().split('\n').filter(Boolean).map(line => {
+    const nets = out.trim().split('\n').filter(Boolean).map(line => {
       const [id, name, driver, scope, internal] = line.split('|');
-      return { id, name, driver, scope, internal: internal === 'true' };
+      return { id, name, driver, scope, internal: internal === 'true', subnet: null };
     });
-    res.json(networks);
+    try {
+      const ids = nets.map(n => n.id).filter(Boolean).join(' ');
+      if (ids) {
+        const insp = JSON.parse(run(`docker network inspect ${ids} 2>&1`, {}));
+        const subnets = {};
+        for (const n of insp) {
+          const cfg = (n.IPAM && n.IPAM.Config && n.IPAM.Config[0]) || {};
+          const subnet = cfg.Subnet || null;
+          subnets[n.Id] = subnet;
+          subnets[String(n.Id).slice(0, 12)] = subnet;
+          if (n.Name) subnets[n.Name] = subnet;
+        }
+        for (const net of nets) net.subnet = subnets[net.id] || subnets[net.name] || null;
+      }
+    } catch {}
+    res.json(nets);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -240,16 +261,45 @@ router.get('/info', (req, res) => {
   }
 });
 
-// Live stats (streaming CPU/mem per container)
+// Live stats (streaming CPU/mem/net/block per container)
 router.get('/stats', (req, res) => {
   try {
-    const out = run('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}" 2>&1', {});
+    const out = run('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}" 2>&1', {});
     const stats = out.trim().split('\n').filter(Boolean).map(line => {
-      const [name, cpu, memUsage, memPerc, net] = line.split('|');
-      return { name, cpu, memUsage, memPerc, net };
+      const [name, cpu, memUsage, memPerc, net, block] = line.split('|');
+      return { name, cpu, memUsage, memPerc, net, block };
     });
     res.json(stats);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Disk usage summary (images / containers / volumes / build cache)
+router.get('/df', (req, res) => {
+  try {
+    const out = run('docker system df --format "{{json .}}" 2>&1', {});
+    const rows = out.trim().split('\n').filter(Boolean).map(line => {
+      try {
+        const r = JSON.parse(line);
+        return { type: r.Type, total: r.TotalCount, active: r.Active, size: r.Size, reclaimable: r.Reclaimable };
+      } catch { return null; }
+    }).filter(Boolean);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Prune unused containers/networks/dangling images (admin only)
+router.post('/prune', requireRole('admin'), (req, res) => {
+  try {
+    const out = run('docker system prune -f 2>&1', {});
+    const m = /Total reclaimed space:\s*(\S+(?:\s*\S+)?)/.exec(out);
+    req.audit?.('docker.prune', 'system', {});
+    res.json({ success: true, reclaimed: m ? m[1].trim() : null, output: out.trim().slice(0, 2000) });
+  } catch (err) {
+    req.audit?.('docker.prune', 'system', { error: err.message }, 'failure');
     res.status(500).json({ error: err.message });
   }
 });
