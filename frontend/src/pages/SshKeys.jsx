@@ -1,37 +1,34 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Modal, { Field, Button, EmptyState } from '../components/ui.jsx'
 
 export default function SshKeys() {
+  const notify = useNotify()
   const [keys, setKeys] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('keys')
   const [showAdd, setShowAdd] = useState(false)
-  const [toast, setToast] = useState(null)
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
       const [k, u] = await Promise.all([api.get('/users/ssh-keys'), api.get('/users/users')])
       setKeys(k); setUsers(u)
-    } catch (e) { toastMsg(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
 
   const delKey = async (id) => {
-    if (!confirm('Remove this SSH key?')) return
-    try { await api.del(`/users/ssh-keys/${id}`); await load(); toastMsg('SSH key removed') }
-    catch (e) { toastMsg(e.message) }
+    if (!(await notify.confirm('Remove this SSH key?', { title: 'Remove SSH key', confirmText: 'Remove' }))) return
+    try { await api.del(`/users/ssh-keys/${id}`); await load(); notify.success('SSH key removed') }
+    catch (e) { notify.error(e.message) }
   }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{toast}</div>}
-
       <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-panel-card p-1 rounded-lg border border-panel-border">
           <button className={`px-4 py-2 rounded-md text-sm ${tab === 'keys' ? 'bg-panel-accent text-white' : 'text-panel-muted'}`} onClick={() => setTab('keys')}><KeyRound size={15} className="inline mr-1.5 -mt-0.5" />SSH Keys ({keys.length})</button>
@@ -86,7 +83,7 @@ export default function SshKeys() {
         </div>
       )}
 
-      <AddKeyModal open={showAdd} onClose={() => setShowAdd(false)} onAdded={(m) => { toastMsg(m); load() }} />
+      <AddKeyModal open={showAdd} onClose={() => setShowAdd(false)} onAdded={(m) => { notify.success(m); load() }} />
     </div>
   )
 }

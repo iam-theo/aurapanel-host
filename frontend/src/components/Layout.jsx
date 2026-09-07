@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { AlertBanner } from '../context/NotifyContext'
 import { useSWR } from '../lib/useSWR'
 
 const navGroups = [
@@ -114,6 +115,7 @@ export default function Layout() {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">
+          <AlertBanner />
           <Outlet />
         </main>
       </div>

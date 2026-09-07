@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { NotifyProvider } from './context/NotifyContext'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
 import { Skeleton } from './components/Skeleton.jsx'
@@ -35,6 +36,7 @@ function Fallback() {
 
 export default function App() {
   return (
+    <NotifyProvider>
     <AuthProvider>
       <BrowserRouter>
         <Suspense fallback={<Fallback />}>
@@ -62,5 +64,6 @@ export default function App() {
         </Suspense>
       </BrowserRouter>
     </AuthProvider>
+    </NotifyProvider>
   )
 }

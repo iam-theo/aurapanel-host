@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play, Square, RotateCcw, Trash2, RefreshCw, Box, Image as ImageIcon, Network, Database as DbIcon, Plus, FileCode2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
@@ -13,6 +14,7 @@ const TABS = [
 ]
 
 export default function Containers() {
+  const notify = useNotify()
   const [tab, setTab] = useState('containers')
   const [containers, setContainers] = useState([])
   const [images, setImages] = useState([])
@@ -23,11 +25,8 @@ export default function Containers() {
   const [showCreate, setShowCreate] = useState(false)
   const [showCompose, setShowCompose] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
-  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
@@ -36,7 +35,7 @@ export default function Containers() {
         api.get('/docker/networks'), api.get('/docker/volumes'),
       ])
       setContainers(c); setImages(i); setNetworks(n); setVolumes(v)
-    } catch (e) { toastMsg(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
   }
 
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t) }, [])
@@ -44,34 +43,32 @@ export default function Containers() {
   const action = async (id, op) => {
     try {
       await api.post(`/docker/containers/${id}/${op}`)
-      await load(); toastMsg(`Container ${op}ed`)
-    } catch (e) { toastMsg(e.message) }
+      await load(); notify.success(`Container ${op}ed`)
+    } catch (e) { notify.error(e.message) }
   }
 
   const filtered = q ? containers.filter(c => c.name.toLowerCase().includes(q.toLowerCase()) || c.image.toLowerCase().includes(q.toLowerCase())) : containers
   const { paged: pagedContainers, totalPages } = paginate(filtered, page, 8)
   const bulk = useBulk(pagedContainers, c => c.id)
   const bulkAction = async (op) => { for (const id of bulk.selected) { try { await api.post(`/docker/containers/${id}/${op}`) } catch {} } await load(); bulk.clear() }
-  const bulkDelete = async () => { if (!confirm(`Delete ${bulk.count} containers?`)) return; for (const id of bulk.selected) { try { await api.del(`/docker/containers/${id}?force=true`) } catch {} } await load(); bulk.clear() }
+  const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} containers?`, { title: 'Delete containers', confirmText: 'Delete' }))) return; for (const id of bulk.selected) { try { await api.del(`/docker/containers/${id}?force=true`) } catch {} } await load(); bulk.clear() }
 
   const delContainer = async (id) => {
     try {
       await api.del(`/docker/containers/${id}?force=true`)
-      await load(); toastMsg('Container removed')
-    } catch (e) { toastMsg(e.message) }
+      await load(); notify.success('Container removed')
+    } catch (e) { notify.error(e.message) }
   }
 
   const viewLogs = async (id) => {
     try {
       const d = await api.get(`/docker/containers/${id}/logs?lines=150`)
       setSelectedLogs({ id, logs: d.logs })
-    } catch (e) { toastMsg(e.message) }
+    } catch (e) { notify.error(e.message) }
   }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{toast}</div>}
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-1 bg-panel-card p-1 rounded-lg border border-panel-border">
           {TABS.map(t => (
@@ -153,7 +150,7 @@ export default function Containers() {
                   <td className="px-4 py-3"><span className="status-badge bg-panel-blue/15 text-panel-blue">{img.tag}</span></td>
                   <td className="px-4 py-3 text-xs text-panel-muted">{img.size}</td>
                   <td className="px-4 py-3 text-xs text-panel-muted">{img.created}</td>
-                  <td className="px-4 py-3 text-right"><button className="btn !px-2 !py-1 !bg-panel-red/20 !text-panel-red" onClick={async () => { try { await api.del(`/docker/images/${img.id}`); toastMsg('Image removed'); load() } catch (e) { toastMsg(e.message) } }}><Trash2 size={13} /></button></td>
+                  <td className="px-4 py-3 text-right"><button className="btn !px-2 !py-1 !bg-panel-red/20 !text-panel-red" onClick={async () => { try { await api.del(`/docker/images/${img.id}`); notify.success('Image removed'); load() } catch (e) { notify.error(e.message) } }}><Trash2 size={13} /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -193,8 +190,8 @@ export default function Containers() {
         </div>
       )}
 
-      <CreateContainerModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { toastMsg(m); load() }} images={images} networks={networks} />
-      <ComposeModal open={showCompose} onClose={() => setShowCompose(false)} onCreated={(m) => { toastMsg(m); load() }} />
+      <CreateContainerModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { notify.success(m); load() }} images={images} networks={networks} />
+      <ComposeModal open={showCompose} onClose={() => setShowCompose(false)} onCreated={(m) => { notify.success(m); load() }} />
       <ConfirmModal open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => confirmDel && delContainer(confirmDel.id)} title="Remove container" confirmText="Remove" message={`Force-remove container '${confirmDel?.name}'?`} />
     </div>
   )

@@ -1,39 +1,38 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Plus, Trash2, Download, Database, Folder, RotateCcw, Archive } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
 import { formatBytes } from '../lib/utils'
 
 export default function Backups() {
+  const notify = useNotify()
   const [backups, setBackups] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
   const [confirmRestore, setConfirmRestore] = useState(null)
-  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
       const d = await api.get('/backups')
       setBackups(d)
-    } catch (e) { toastMsg(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
   const filtered = q ? backups.filter(b => b.name.toLowerCase().includes(q.toLowerCase())) : backups
   const { paged, totalPages } = paginate(filtered, page, 9)
   const bulk = useBulk(paged, b => b.name)
-  const bulkDelete = async () => { if (!confirm(`Delete ${bulk.count} backups?`)) return; for (const n of bulk.selected) try { await api.del(`/backups/${n}`) } catch {}; await load(); bulk.clear() }
+  const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} backups?`, { title: 'Delete backups', confirmText: 'Delete' }))) return; for (const n of bulk.selected) try { await api.del(`/backups/${n}`) } catch {}; await load(); bulk.clear() }
 
   const del = async (name) => {
-    try { await api.del(`/backups/${name}`); await load(); toastMsg('Backup deleted') }
-    catch (e) { toastMsg(e.message) }
+    try { await api.del(`/backups/${name}`); await load(); notify.success('Backup deleted') }
+    catch (e) { notify.error(e.message) }
   }
 
   const restore = async (b) => {
@@ -44,14 +43,12 @@ export default function Backups() {
       } else {
         await api.post('/backups/restore/directory', { filename: b.name, destination: confirmRestore.dest })
       }
-      toastMsg('Restore completed')
-    } catch (e) { toastMsg(e.message) }
+      notify.success('Restore completed')
+    } catch (e) { notify.error(e.message) }
   }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <Toast msg={toast} />}
-
       <div className="flex items-center justify-between">
         <div>
           <p className="text-2xl font-bold">{backups.length}</p>
@@ -93,17 +90,15 @@ export default function Backups() {
 
       {filtered.length === 0 && !loading && <EmptyState icon={Archive} title="No backups yet" subtitle="Create your first backup" />}
 
-      <CreateBackupModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { toastMsg(m); load() }} />
+      <CreateBackupModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { notify.success(m); load() }} />
       <ConfirmModal open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => confirmDel && del(confirmDel.name)} title="Delete backup" confirmText="Delete" message={`Delete backup '${confirmDel?.name}'? This cannot be undone.`} />
 
       {confirmRestore && (
-        <RestoreModal backup={confirmRestore} onClose={() => setConfirmRestore(null)} onRestored={(m) => { toastMsg(m) }} />
+        <RestoreModal backup={confirmRestore} onClose={() => setConfirmRestore(null)} onRestored={(m) => { notify.success(m) }} />
       )}
     </div>
   )
 }
-
-function Toast({ msg }) { if (!msg) return null; return <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{msg}</div> }
 
 function CreateBackupModal({ open, onClose, onCreated }) {
   const [type, setType] = useState('database')

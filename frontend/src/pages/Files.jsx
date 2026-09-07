@@ -2,10 +2,11 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   Folder, File, ChevronRight, ChevronLeft, FolderPlus, FilePlus, FileEdit,
   Trash2, RefreshCw, Save, X, ArrowUp, Upload, Download, Copy, Scissors,
-  Clipboard, Archive, PackageOpen, Home, Eye, EyeOff, Check,
+  Clipboard, Archive, PackageOpen, Home, Eye, EyeOff,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBytes } from '../lib/utils'
+import { useNotify } from '../context/NotifyContext'
 
 const CODE_EXT = ['js', 'jsx', 'ts', 'tsx', 'py', 'json', 'html', 'css', 'yml', 'yaml', 'md', 'sh', 'env', 'conf', 'sql', 'c', 'cpp', 'h', 'go', 'rb', 'php', 'txt', 'log', 'xml', 'vue', 'svelte', 'toml', 'ini', 'tf']
 const EXT_COLORS = {
@@ -32,6 +33,7 @@ const permStr = (p) => {
 }
 
 export default function Files() {
+  const notify = useNotify()
   const [path, setPath] = useState('/root')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -87,7 +89,7 @@ export default function Files() {
       setEditing({ path: item.path, name: item.name, binary: d.binary, size: d.size, preview: d.error })
       setEditorContent(d.content || '')
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -97,10 +99,10 @@ export default function Files() {
     try {
       await api.post('/files/write', { path: editing.path, content: editorContent })
       setEditing(null)
-      toast(`Saved ${editing.name}`)
+      notify.success(`Saved ${editing.name}`)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     } finally {
       setSaving(false)
     }
@@ -125,11 +127,11 @@ export default function Files() {
       } else {
         await api.post('/files/create', { path, name })
       }
-      toast(`Created ${name}`)
+      notify.success(`Created ${name}`)
       setModal(null)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -140,11 +142,11 @@ export default function Files() {
     try {
       const newPath = `${item.path.slice(0, item.path.lastIndexOf('/') + 1)}${newName}`
       await api.post('/files/rename', { oldPath: item.path, newPath })
-      toast(`Renamed to ${newName}`)
+      notify.success(`Renamed to ${newName}`)
       setModal(null)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -152,32 +154,32 @@ export default function Files() {
     try {
       for (const p of itemsToDelete) await api.del(`/files/delete?path=${encodeURIComponent(p)}`)
       const verb = itemsToDelete.length > 1 ? `${itemsToDelete.length} items` : modal?.item?.name || 'item'
-      toast(`Deleted ${verb}`)
+      notify.success(`Deleted ${verb}`)
       setModal(null)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
   const zipItems = async (targets) => {
     try {
       for (const t of targets) await api.post('/files/zip', { path: t })
-      toast(targets.length > 1 ? 'Zipped items' : `Zipped ${targets[0].split('/').pop()}`)
+      notify.success(targets.length > 1 ? 'Zipped items' : `Zipped ${targets[0].split('/').pop()}`)
       setModal(null)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
   const unzipItem = async (item) => {
     try {
       await api.post('/files/unzip', { path: item.path })
-      toast(`Extracted ${item.name}`)
+      notify.success(`Extracted ${item.name}`)
       load()
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -185,7 +187,7 @@ export default function Files() {
     const targets = [...selected]
     if (targets.length === 0) return
     setClipboard({ action, paths: targets })
-    toast(`${action === 'copy' ? 'Copied' : 'Cut'} ${targets.length} item(s) — navigate & paste`)
+    notify.success(`${action === 'copy' ? 'Copied' : 'Cut'} ${targets.length} item(s) — navigate & paste`)
   }
 
   const pasteInto = async (destPath) => {
@@ -210,11 +212,11 @@ export default function Files() {
         }
       }
       const verb = clipboard.paths.length > 1 ? `${clipboard.paths.length} items` : clipboard.paths[0].split('/').pop()
-      toast(`${label} ${verb} → ${destPath}`)
+      notify.success(`${label} ${verb} → ${destPath}`)
       setClipboard(null)
       load(destPath)
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -226,11 +228,11 @@ export default function Files() {
       const fd = new FormData()
       files.forEach(f => fd.append('files', f))
       const res = await api.upload(`/files/upload?dir=${encodeURIComponent(path)}`, fd)
-      toast(`Uploaded ${res.count} file(s)`)
+      notify.success(`Uploaded ${res.count} file(s)`)
       if (fileInputRef.current) fileInputRef.current.value = ''
       load()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setUploading(false)
     }
@@ -252,7 +254,7 @@ export default function Files() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -272,7 +274,7 @@ export default function Files() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     }
   }
 
@@ -291,10 +293,6 @@ export default function Files() {
 
   const isZip = (name) => /\.zip$/i.test(name)
 
-  // toast helper
-  const [toastMsg, setToastMsg] = useState(null)
-  const toast = (msg) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 2500) }
-
   const sortItems = (list) => [...list].sort((a, b) => {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
     return a.name.localeCompare(b.name)
@@ -302,17 +300,11 @@ export default function Files() {
 
   const mkTarget = (action, item) => {
     setClipboard({ action, paths: [item.path] })
-    toast(`${action === 'copy' ? 'Copied' : 'Cut'} ${item.name} — navigate & paste`)
+    notify.success(`${action === 'copy' ? 'Copied' : 'Cut'} ${item.name} — navigate & paste`)
   }
 
   return (
     <div className="p-6 space-y-4">
-      {toastMsg && (
-        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 bg-panel-green/15 border border-panel-green text-panel-green text-sm px-4 py-2.5 rounded-lg shadow-lg">
-          <Check size={15} /> {toastMsg}
-        </div>
-      )}
-
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 bg-panel-card border border-panel-border rounded-lg p-2">
         <span className="flex items-center gap-1 text-xs text-panel-muted px-2">

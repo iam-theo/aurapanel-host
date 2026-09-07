@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Globe, Lock, RefreshCw, ArrowLeft, FileCode, Plus, Trash2, Power, Check } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
 
 export default function Domains() {
+  const notify = useNotify()
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
-  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
-
-  const toastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
@@ -33,33 +32,27 @@ export default function Domains() {
   const filtered = q ? sites.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || (s.serverNames||[]).join(' ').toLowerCase().includes(q.toLowerCase())) : sites
   const { paged, totalPages } = paginate(filtered, page, 8)
   const bulk = useBulk(paged, s => s.name)
-  const bulkDelete = async () => { if (!confirm(`Delete ${bulk.count} sites?`)) return; for (const n of bulk.selected) try { await api.del(`/nginx/sites/${n}`) } catch {}; await load(); bulk.clear() }
+  const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} sites?`, { title: 'Delete sites', confirmText: 'Delete' }))) return; for (const n of bulk.selected) try { await api.del(`/nginx/sites/${n}`) } catch {}; await load(); bulk.clear() }
   const bulkToggle = async (action) => { for (const n of bulk.selected) try { await api.post(`/nginx/sites/${n}/${action}`) } catch {}; await load(); bulk.clear() }
 
   const toggleSite = async (name, action) => {
     try {
       await api.post(`/nginx/sites/${name}/${action}`)
       await load()
-      toastMsg(action === 'enable' ? 'Site enabled' : 'Site disabled')
-    } catch (e) { toastMsg(e.message) }
+      notify.success(action === 'enable' ? 'Site enabled' : 'Site disabled')
+    } catch (e) { notify.error(e.message) }
   }
 
   const delSite = async (name) => {
     try {
       await api.del(`/nginx/sites/${name}`)
       await load()
-      toastMsg(`Site '${name}' deleted`)
-    } catch (e) { toastMsg(e.message) }
+      notify.success(`Site '${name}' deleted`)
+    } catch (e) { notify.error(e.message) }
   }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">
-          {toast}
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div>
@@ -140,7 +133,7 @@ export default function Domains() {
         </div>
       )}
 
-      <CreateSiteModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(msg) => { toastMsg(msg); load() }} />
+      <CreateSiteModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(msg) => { notify.success(msg); load() }} />
 
       <ConfirmModal
         open={!!confirmDel}

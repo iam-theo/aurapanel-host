@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
@@ -14,14 +15,12 @@ const CATEGORIES = [
 const TABS = CATEGORIES.flatMap(c => c.tabs)
 
 export default function Databases() {
+  const notify = useNotify()
   const [tab, setTab] = useState('postgres')
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
   const [createDb, setCreateDb] = useState(null)
   const [createUser, setCreateUser] = useState(null)
-
-  const toastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
@@ -40,8 +39,8 @@ export default function Databases() {
       const ola = olaR.status === 'fulfilled' ? olaR.value : { models: [], running: false }
       setData({ postgres: pg, redis, memcached: mem, rabbitmq: rmq, ollama: ola })
       const failed = results.filter(r => r.status === 'rejected')
-      if (failed.length) toastMsg(`${failed.length} service(s) unavailable — showing available data`)
-    } catch (e) { toastMsg(e.message) }
+      if (failed.length) notify.warning(`${failed.length} service(s) unavailable — showing available data`)
+    } catch (e) { notify.error(e.message) }
     finally { setLoading(false) }
   }
 
@@ -49,8 +48,6 @@ export default function Databases() {
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <Toast msg={toast} />}
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-3 bg-panel-card p-2 rounded-lg border border-panel-border overflow-x-auto">
           {CATEGORIES.map(cat => (
@@ -77,27 +74,23 @@ export default function Databases() {
         )}
       </div>
 
-      {tab === 'postgres' && <PostgresTab servers={data.postgres} onNewDb={setCreateDb} onNewUser={setCreateUser} reload={load} toast={toastMsg} />}
-      {tab === 'redis' && <RedisTab data={data.redis} toast={toastMsg} />}
+      {tab === 'postgres' && <PostgresTab servers={data.postgres} onNewDb={setCreateDb} onNewUser={setCreateUser} reload={load} notify={notify} />}
+      {tab === 'redis' && <RedisTab data={data.redis} notify={notify} />}
       {tab === 'memcached' && <MemcachedTab data={data.memcached} />}
       {tab === 'rabbitmq' && <RabbitmqTab data={data.rabbitmq} />}
       {tab === 'ollama' && <OllamaTab data={data.ollama} />}
 
       {createDb && (
-        <CreateDbModal server={createDb} onClose={() => setCreateDb(null)} onCreated={(m) => { toastMsg(m); load() }} />
+        <CreateDbModal server={createDb} onClose={() => setCreateDb(null)} onCreated={(m) => { notify.success(m); load() }} />
       )}
       {createUser && (
-        <CreateUserModal server={createUser} onClose={() => setCreateUser(null)} onCreated={(m) => { toastMsg(m); load() }} />
+        <CreateUserModal server={createUser} onClose={() => setCreateUser(null)} onCreated={(m) => { notify.success(m); load() }} />
       )}
     </div>
   )
 }
 
-function Toast({ msg }) {
-  return <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{msg}</div>
-}
-
-function PostgresTab({ servers, onNewDb, onNewUser, reload, toast }) {
+function PostgresTab({ servers, onNewDb, onNewUser, reload, notify }) {
   const [confirmDel, setConfirmDel] = useState(null)
   const [expandDb, setExpandDb] = useState(null)
 
@@ -107,9 +100,9 @@ function PostgresTab({ servers, onNewDb, onNewUser, reload, toast }) {
   const delDb = async (name, cluster) => {
     try {
       await api.del(`/databases/postgres/databases/${name}?cluster=${cluster}`)
-      toast(`Database '${name}' dropped`)
+      notify.success(`Database '${name}' dropped`)
       reload()
-    } catch (e) { toast(e.message) }
+    } catch (e) { notify.error(e.message) }
   }
 
   return (
@@ -165,7 +158,7 @@ function PostgresTab({ servers, onNewDb, onNewUser, reload, toast }) {
       <ConfirmModal open={!!confirmDel} onClose={() => setConfirmDel(null)}
         onConfirm={() => confirmDel?.type === 'db'
           ? delDb(confirmDel.name, confirmDel.cluster)
-          : (async () => { try { await api.del(`/databases/postgres/users/${confirmDel.name}?cluster=${confirmDel.cluster}`); toast(`User '${confirmDel.name}' dropped`); reload() } catch (e) { toast(e.message) } })()}
+          : (async () => { try { await api.del(`/databases/postgres/users/${confirmDel.name}?cluster=${confirmDel.cluster}`); notify.success(`User '${confirmDel.name}' dropped`); reload() } catch (e) { notify.error(e.message) } })()}
         title={confirmDel?.type === 'db' ? 'Drop database' : 'Drop user'}
         message={confirmDel?.type === 'db'
           ? `Drop database '${confirmDel?.name}'? All data will be permanently deleted.`
@@ -265,7 +258,7 @@ function generatePassword(len = 16) {
   return pw
 }
 
-function RedisTab({ data, toast }) {
+function RedisTab({ data, notify }) {
   if (!data) return <Loading />
   return (
     <div className="panel-card">
@@ -283,7 +276,7 @@ function RedisTab({ data, toast }) {
         <MiniMetric label="Uptime" value={`${Math.floor((data.uptimeSeconds || 0) / 3600)}h`} />
       </div>
       <div className="mt-4 flex justify-end">
-        <button className="btn-red !py-1.5" onClick={async () => { if (confirm('Flush ALL Redis data?')) { try { await api.post('/databases/redis/flush'); toast('Redis flushed') } catch (e) { toast(e.message) } } }}>Flush All</button>
+        <button className="btn-red !py-1.5" onClick={async () => { if (await notify.confirm('Flush ALL Redis data? This permanently deletes every key.', { title: 'Flush Redis', confirmText: 'Flush all' })) { try { await api.post('/databases/redis/flush'); notify.success('Redis flushed') } catch (e) { notify.error(e.message) } } }}>Flush All</button>
       </div>
     </div>
   )

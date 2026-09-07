@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Plus, Trash2, Play, Clock } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
@@ -16,44 +17,40 @@ const PRESETS = [
 ]
 
 export default function Cron() {
+  const notify = useNotify()
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
-  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
       const d = await api.get('/cron')
       setJobs(d.jobs)
-    } catch (e) { toastMsg(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
 
   const { paged, totalPages } = paginate(jobs, page, 8)
   const bulk = useBulk(paged, j => j.id)
-  const bulkDelete = async () => { if (!confirm(`Delete ${bulk.count} jobs?`)) return; for (const id of bulk.selected) try { await api.del(`/cron/${id}`) } catch {}; await load(); bulk.clear() }
+  const bulkDelete = async () => { if (!(await notify.confirm(`Delete ${bulk.count} jobs?`, { title: 'Delete jobs', confirmText: 'Delete' }))) return; for (const id of bulk.selected) try { await api.del(`/cron/${id}`) } catch {}; await load(); bulk.clear() }
 
   const del = async (id) => {
-    try { await api.del(`/cron/${id}`); await load(); toastMsg('Cron job deleted') }
-    catch (e) { toastMsg(e.message) }
+    try { await api.del(`/cron/${id}`); await load(); notify.success('Cron job deleted') }
+    catch (e) { notify.error(e.message) }
   }
 
   const run = async (id) => {
     try {
       const d = await api.post(`/cron/${id}/run`)
-      toastMsg(d.output?.split('\n').slice(-3).join(' '))
-    } catch (e) { toastMsg(e.message) }
+      notify.info(d.output?.split('\n').slice(-3).join(' ') || 'Job executed')
+    } catch (e) { notify.error(e.message) }
   }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm max-w-md">{toast}</div>}
-
       {bulk.count > 0 && <BulkBar count={bulk.count} onClear={bulk.clear} actions={[{ label: 'Delete', icon: <Trash2 size={13} />, onClick: bulkDelete }]} />}
       <div className="flex items-center justify-between">
         <div>
@@ -89,7 +86,7 @@ export default function Cron() {
 
       {jobs.length === 0 && !loading && <EmptyState icon={Clock} title="No cron jobs" subtitle="Schedule automated tasks" />}
 
-      <CreateJobModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { toastMsg(m); load() }} />
+      <CreateJobModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={(m) => { notify.success(m); load() }} />
       <ConfirmModal open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => confirmDel && del(confirmDel.id)} title="Delete cron job" confirmText="Delete" message="Delete this cron job? It will be removed from the crontab." />
     </div>
   )

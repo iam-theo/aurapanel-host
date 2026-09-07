@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { Bot, RefreshCw, Clock, Loader2, ExternalLink, Shield, Activity, Server, Package, ScrollText, Sparkles, Globe, Zap, ArrowUpRight, MessageSquare, Plus, Square, Send, ChevronDown, Wrench, FileCode, Terminal, Search, AlertTriangle, CheckCircle2, XCircle, Lightbulb, ArrowRight, ListTodo, Check, Circle, SkipForward, CornerDownLeft } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 
 export default function Aurex() {
+  const notify = useNotify()
   const [hostPath] = useState('/root/apps')
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
@@ -18,7 +20,6 @@ export default function Aurex() {
   const [serverCtx, setServerCtx] = useState(null)
   const [capabilities, setCapabilities] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
   const [composer, setComposer] = useState('')
   const [sending, setSending] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -28,7 +29,11 @@ export default function Aurex() {
   const textareaRef = useRef(null)
   const esRef = useRef(null)
 
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
+  const runToast = (status, suffix = '') => {
+    if (status === 'failed') notify.error(`Run failed${suffix}`)
+    else if (status === 'aborted') notify.warning(`Run aborted${suffix}`)
+    else notify.success(`Run ${status}${suffix}`)
+  }
 
   const loadProjects = async () => {
     try {
@@ -37,13 +42,13 @@ export default function Aurex() {
       setProjects(arr)
       if (!selectedProject && arr.length) setSelectedProject(arr[0].id)
       return arr
-    } catch (e) { toastMsg('Aurex API: ' + e.message); return [] }
+    } catch (e) { notify.error('Aurex API: ' + e.message); return [] }
   }
   const loadProjectDetail = async (id) => {
     try {
       const d = await api.get(`/aurex/projects/${id}`)
       setProjectDetail(d); setRuns(d.runs || [])
-    } catch (e) { toastMsg(e.message) }
+    } catch (e) { notify.error(e.message) }
   }
   const loadModels = async () => {
     try {
@@ -117,12 +122,12 @@ export default function Aurex() {
           if (['completed','failed','aborted','cancelled','done'].includes(norm)) {
             const final = norm==='done' ? 'completed' : norm==='cancelled' ? 'aborted' : norm
             setRunStatus(final)
-            toastMsg(`Run ${final}`)
+            runToast(final)
             if (selectedProject) loadProjectDetail(selectedProject)
             setTimeout(()=> es.close(), 300)
           } else {
             setRunStatus(norm)
-            toastMsg(`Run ${norm}`)
+            notify.info(`Run ${norm}`)
           }
         }
       } catch {}
@@ -147,7 +152,7 @@ export default function Aurex() {
           if (!cancelled) {
             setRunStatus(final)
             esRef.current?.close()
-            toastMsg(`Run ${final} (polled)`)
+            runToast(final, ' (polled)')
             if (selectedProject) loadProjectDetail(selectedProject)
           }
         }
@@ -166,7 +171,7 @@ export default function Aurex() {
       const r = await api.post('/aurex/bridge/import', { hostPath, projectName: 'Server Chat' })
       const id = r.project?.id
       if (id) { await loadProjects(); setSelectedProject(id); return id }
-    } catch (e) { toastMsg(e.message) }
+    } catch (e) { notify.error(e.message) }
     throw new Error('No project available')
   }
 
@@ -180,7 +185,7 @@ export default function Aurex() {
       if (shouldNewRun) {
         const pid = await ensureProjectId()
         const r = await api.post('/aurex/runs', { projectId: pid, task: text, model, hostPath, serverMode })
-        toastMsg(`Started ${r.id?.slice(0, 8)}`)
+        notify.success(`Started ${r.id?.slice(0, 8)}`)
         setComposer('')
         setActiveRun(r.id)
         setRunStatus('running')
@@ -192,19 +197,19 @@ export default function Aurex() {
         setEvents(prev => [...prev, { type: 'message', data: { role: 'user', text }, createdAt: new Date().toISOString() }])
         setComposer('')
         if (runStatus==='completed' || runStatus==='failed' || runStatus==='aborted') setRunStatus('running')
-        toastMsg('Message sent')
+        notify.success('Message sent')
       }
-    } catch (e) { toastMsg(e.message) } finally { setSending(false) }
+    } catch (e) { notify.error(e.message) } finally { setSending(false) }
   }
 
   const abortRun = async (id) => {
-    try { await api.post(`/aurex/runs/${id || activeRun}/abort`); setRunStatus('aborted'); esRef.current?.close(); toastMsg('Abort requested') } catch (e) { toastMsg(e.message) }
+    try { await api.post(`/aurex/runs/${id || activeRun}/abort`); setRunStatus('aborted'); esRef.current?.close(); notify.warning('Abort requested') } catch (e) { notify.error(e.message) }
   }
   const answerQuestions = async (requestId, answers) => {
     if (!activeRun) return
     try {
       await api.post(`/aurex/runs/${activeRun}/questions`, { requestId, answers });
-      toastMsg('Answers sent')
+      notify.success('Answers sent')
       // render answers back to chat so agent sees them and user has confirmation
       const qEvent = events.find(ev => ev.data?.requestId === requestId)
       const qs = qEvent?.data?.questions || []
@@ -215,7 +220,7 @@ export default function Aurex() {
       }).join('  ·  ')
       setEvents(prev => [...prev, { type: 'message', data: { role: 'user', text: `Answered: ${summary}` }, createdAt: new Date().toISOString() }])
       setQuestionProgress(p => ({ ...p, [requestId]: { ...(p[requestId]||{idx:0,answers:[]}), done: true } }))
-    } catch (e) { toastMsg(e.message) }
+    } catch (e) { notify.error(e.message) }
   }
   const handleQuestionOption = (requestId, questions, optLabel, customText) => {
     const cur = questionProgress[requestId] || { idx: 0, answers: questions.map(()=>[]) }
@@ -371,8 +376,6 @@ export default function Aurex() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#0f1115]">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-[#1a1d24] border border-violet-500/30 text-white px-4 py-3 rounded-xl text-sm shadow-2xl flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />{toast}</div>}
-
       <div className="shrink-0 border-b border-white/[0.06] bg-[#0f1115]/80 backdrop-blur supports-[backdrop-filter]:bg-[#0f1115]/60">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -414,7 +417,7 @@ export default function Aurex() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-white/60">Recent chats</span>
                 <div className="flex items-center gap-1.5">
-                  {runs.length>0 && <button onClick={async()=>{ if(!confirm('Clear all chat history? This deletes all projects and runs for this panel user.')) return; try{ await api.del('/aurex/history'); toastMsg('History cleared'); setActiveRun(null); setRunStatus(null); setEvents([]); loadProjects(); } catch(e){ toastMsg(e.message) } }} className="text-[11px] px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/15">Clear all</button>}
+                  {runs.length>0 && <button onClick={async()=>{ if(!(await notify.confirm('Clear all chat history? This deletes all projects and runs for this panel user.', { title: 'Clear history', confirmText: 'Clear all' }))) return; try{ await api.del('/aurex/history'); notify.success('History cleared'); setActiveRun(null); setRunStatus(null); setEvents([]); loadProjects(); } catch(e){ notify.error(e.message) } }} className="text-[11px] px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/15">Clear all</button>}
                   <select value={selectedProject || ''} onChange={e=>setSelectedProject(e.target.value)} className="bg-[#0f1115] border border-white/10 rounded-full px-2.5 py-1 text-xs text-white">
                     <option value="">Select project</option>
                     {projects.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}

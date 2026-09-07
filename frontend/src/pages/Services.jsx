@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Play, Square, RotateCcw, Power, RefreshCw, Server, Check } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -15,6 +16,7 @@ const GROUP_COLORS = {
 }
 
 export default function Services() {
+  const notify = useNotify()
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(null)
@@ -40,7 +42,7 @@ export default function Services() {
       await api.post(`/services/${name}/${op}`)
       setTimeout(load, 500)
     } catch (e) {
-      alert(e.message)
+      notify.error(e.message)
     } finally {
       setBusy(null)
     }

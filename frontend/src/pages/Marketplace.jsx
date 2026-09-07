@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, Download, Check, Package, Boxes, Globe, Database, Server, Activity, Copy, RefreshCw, Trash2, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -11,6 +12,7 @@ const CAT_ICON = {
 }
 
 export default function Marketplace() {
+  const notify = useNotify()
   const [activeTab, setActiveTab] = useState('marketplace') // marketplace | installed
   const [category, setCategory] = useState('all')
   const [q, setQ] = useState('')
@@ -18,23 +20,20 @@ export default function Marketplace() {
   const [installed, setInstalled] = useState({ packages: [], total: 0 })
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [toast, setToast] = useState(null)
   const [installing, setInstalling] = useState(new Set())
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const loadMarketplace = async () => {
     setLoading(true)
     try {
       const d = await api.get(`/packages/marketplace?category=${category}&q=${encodeURIComponent(q)}`)
       setData(d)
-    } catch (e) { toastMsg(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
   }
   const loadInstalled = async () => {
     try {
       const d = await api.get('/packages/installed')
       setInstalled(d)
-    } catch (e) { toastMsg(e.message) }
+    } catch (e) { notify.error(e.message) }
   }
 
   useEffect(() => { loadMarketplace(); loadInstalled() }, [])
@@ -53,7 +52,7 @@ export default function Marketplace() {
     setInstalling(s => new Set([...s, id]))
     try {
       const r = await api.post('/packages/install', { id })
-      toastMsg(`Installing ${id} — job ${r.jobId?.slice(0, 8)}`)
+      notify.info(`Installing ${id} — job ${r.jobId?.slice(0, 8)}`)
       // poll job
       const jobId = r.jobId
       let tries = 0
@@ -65,12 +64,13 @@ export default function Marketplace() {
           if (j.status !== 'running') {
             clearInterval(poll)
             setInstalling(s => { const n = new Set(s); n.delete(id); return n })
-            toastMsg(j.status === 'done' ? `${id} installed` : `${id} failed`)
+            if (j.status === 'done') notify.success(`${id} installed`)
+            else notify.error(`${id} install failed`)
             loadMarketplace(); loadInstalled()
           }
         } catch {}
       }, 4000)
-    } catch (e) { toastMsg(e.message); setInstalling(s => { const n = new Set(s); n.delete(id); return n }) }
+    } catch (e) { notify.error(e.message); setInstalling(s => { const n = new Set(s); n.delete(id); return n }) }
   }
 
   const bulkInstall = async () => {
@@ -78,12 +78,10 @@ export default function Marketplace() {
     bulk.clear()
   }
 
-  const copyCmd = (cmd) => { navigator.clipboard?.writeText(cmd); toastMsg('Copied install command') }
+  const copyCmd = (cmd) => { navigator.clipboard?.writeText(cmd); notify.success('Copied install command') }
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{toast}</div>}
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-panel-text">Package Marketplace</h1>

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play, Square, RotateCcw, Trash2, RefreshCw, Plus, Cpu, MemoryStick, GitBranch, Rocket } from 'lucide-react'
 import { api } from '../lib/api'
+import { useNotify } from '../context/NotifyContext'
 import { formatBytes, relativeTime } from '../lib/utils'
 import Modal, { Field, Button, ConfirmModal } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
@@ -16,17 +17,15 @@ const STATUS_STYLES = {
 const PAGE_SIZE = 6
 
 export default function Applications() {
+  const notify = useNotify()
   const [apps, setApps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showDeploy, setShowDeploy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
-  const [toast, setToast] = useState(null)
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
   const navigate = useNavigate()
-
-  const toastMsg = (m) => { setToast(m); setTimeout(() => setToast(null), 3000) }
 
   const load = async () => {
     try {
@@ -52,16 +51,16 @@ export default function Applications() {
     try {
       await api.post(`/pm2/${name}/${op}`)
       await load()
-      toastMsg(`App '${name}' ${op}ed`)
-    } catch (e) { toastMsg(e.message) }
+      notify.success(`App '${name}' ${op}ed`)
+    } catch (e) { notify.error(e.message) }
   }
 
   const delApp = async (name) => {
     try {
       await api.post(`/pm2/${name}/delete`)
       await load()
-      toastMsg(`App '${name}' deleted`)
-    } catch (e) { toastMsg(e.message) }
+      notify.success(`App '${name}' deleted`)
+    } catch (e) { notify.error(e.message) }
   }
 
   const bulkAction = async (op) => {
@@ -69,7 +68,7 @@ export default function Applications() {
     bulk.clear()
   }
   const bulkDelete = async () => {
-    if (!confirm(`Delete ${bulk.count} selected apps?`)) return
+    if (!(await notify.confirm(`Delete ${bulk.count} selected apps?`, { title: 'Delete apps', confirmText: 'Delete' }))) return
     for (const name of bulk.selected) await delApp(name)
     bulk.clear()
   }
@@ -78,8 +77,6 @@ export default function Applications() {
 
   return (
     <div className="p-6 space-y-6">
-      {toast && <div className="fixed top-5 right-5 z-50 bg-panel-green/20 border border-panel-green/40 text-panel-green px-4 py-2 rounded-md text-sm">{toast}</div>}
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-2xl font-bold">{onlineCount}<span className="text-panel-muted text-lg">/{apps.length}</span></p>
@@ -156,7 +153,7 @@ export default function Applications() {
 
       <Pagination page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
 
-      <DeployModal open={showDeploy} onClose={() => setShowDeploy(false)} onDeployed={(m) => { toastMsg(m); load() }} />
+      <DeployModal open={showDeploy} onClose={() => setShowDeploy(false)} onDeployed={(m) => { notify.success(m); load() }} />
       <ConfirmModal
         open={!!confirmDel} onClose={() => setConfirmDel(null)}
         onConfirm={() => confirmDel && delApp(confirmDel.name)}
