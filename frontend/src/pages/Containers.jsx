@@ -678,7 +678,7 @@ function CreateContainerModal({ open, onClose, onCreated, images, networks }) {
   images.forEach(i => { if (!seen.has(i.repo)) { seen.add(i.repo); tagOptions.push(i.repo) } })
 
   return (
-    <Modal open onClose={onClose} title="Create Container">
+    <Modal open={open} onClose={onClose} title="Create Container">
       <div className="space-y-4">
         <Field label="Container name"><input className="input-field" placeholder="myapp" value={form.name} onChange={e => setForm({ ...form, name: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} /></Field>
         <Field label="Image">
@@ -732,7 +732,7 @@ function ComposeModal({ open, onClose, onCreated }) {
   }
 
   return (
-    <Modal open onClose={onClose} title="Deploy from docker-compose.yml" className="max-w-3xl">
+    <Modal open={open} onClose={onClose} title="Deploy from docker-compose.yml" className="max-w-3xl">
       <div className="space-y-4">
         <Field label="Project name"><input className="input-field" placeholder="myproject" value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))} /></Field>
         <Field label="docker-compose.yml"><textarea className="input-field resize-none font-mono text-xs" rows={18} value={compose} onChange={e => setCompose(e.target.value)} spellCheck={false} /></Field>
