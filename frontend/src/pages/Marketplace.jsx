@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Search, Download, Check, Package, Boxes, Globe, Database, Server, Activity, Copy, RefreshCw, Trash2, Loader2 } from 'lucide-react'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import { Search, Download, Check, Package, Boxes, Globe, Database, Server, Activity, RefreshCw, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
-import { PageLoader } from '../components/ui.jsx'
+import { PageLoader, Spinner } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -22,6 +22,10 @@ export default function Marketplace() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [installing, setInstalling] = useState(new Set())
+  // Install overlay: { id, name, jobId, idx, total, startedAt, log: [] }
+  const [overlay, setOverlay] = useState(null)
+  const [elapsed, setElapsed] = useState(0)
+  const logRef = useRef(null)
   // First load shows the spinner; later refreshes keep stale results visible
   const [initialized, setInitialized] = useState(false)
 
@@ -51,37 +55,71 @@ export default function Marketplace() {
   const { paged, totalPages } = paginate(source, page, PAGE_SIZE)
   const bulk = useBulk(paged, x => x.id)
 
-  const install = async (id) => {
+  // Overlay elapsed timer
+  useEffect(() => {
+    if (!overlay) return
+    setElapsed(0)
+    const t = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [overlay?.jobId])
+
+  // Keep overlay log tail pinned to bottom
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
+  }, [overlay?.log?.length])
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+  // Run one install with the overlay; resolves true on success
+  const installOne = async (id, idx = 1, total = 1) => {
+    const pkg = [...data.packages, ...installed.packages].find(p => p.id === id)
+    const name = pkg?.name || id
     setInstalling(s => new Set([...s, id]))
     try {
       const r = await api.post('/packages/install', { id })
-      notify.info(`Installing ${id} — job ${r.jobId?.slice(0, 8)}`)
-      // poll job
-      const jobId = r.jobId
-      let tries = 0
-      const poll = setInterval(async () => {
-        tries++
-        if (tries > 60) { clearInterval(poll); setInstalling(s => { const n = new Set(s); n.delete(id); return n }); return }
+      setOverlay({ id, name, jobId: r.jobId, idx, total, startedAt: Date.now(), log: ['Starting install…'] })
+      // poll until terminal state (up to ~10 min)
+      for (let i = 0; i < 300; i++) {
+        await sleep(2000)
         try {
-          const j = await api.get(`/packages/jobs/${jobId}`)
+          const j = await api.get(`/packages/jobs/${r.jobId}`)
+          const lines = String(j.log || '').split('\n').filter(Boolean)
+          setOverlay(o => o && o.jobId === r.jobId ? { ...o, log: lines.slice(-60) } : o)
           if (j.status !== 'running') {
-            clearInterval(poll)
+            setOverlay(null)
             setInstalling(s => { const n = new Set(s); n.delete(id); return n })
-            if (j.status === 'done') notify.success(`${id} installed`)
-            else notify.error(`${id} install failed`)
-            loadMarketplace(); loadInstalled()
+            if (j.status === 'done') {
+              notify.banner(`'${name}' installed successfully${total > 1 ? ` (${idx}/${total})` : ''}`, 'success', { title: 'Install complete' })
+              return true
+            }
+            const lastLine = lines.slice(-1)[0] || 'unknown error'
+            notify.banner(`'${name}' install failed${total > 1 ? ` (${idx}/${total})` : ''} — ${lastLine.slice(0, 160)}`, 'error', { title: 'Install failed' })
+            return false
           }
         } catch {}
-      }, 4000)
-    } catch (e) { notify.error(e.message); setInstalling(s => { const n = new Set(s); n.delete(id); return n }) }
+      }
+      setOverlay(null)
+      setInstalling(s => { const n = new Set(s); n.delete(id); return n })
+      notify.banner(`'${name}' install timed out waiting for the job — check manually`, 'warning', { title: 'Install timed out' })
+      return false
+    } catch (e) {
+      setOverlay(null)
+      setInstalling(s => { const n = new Set(s); n.delete(id); return n })
+      notify.banner(`'${name}' install failed to start — ${e.message}`, 'error', { title: 'Install failed' })
+      return false
+    }
   }
+
+  const install = (id) => installOne(id).finally(() => { loadMarketplace(); loadInstalled() })
 
   const bulkInstall = async () => {
-    for (const id of bulk.selected) await install(id)
+    const ids = [...bulk.selected]
     bulk.clear()
+    for (let i = 0; i < ids.length; i++) {
+      await installOne(ids[i], i + 1, ids.length)
+      loadMarketplace(); loadInstalled()
+    }
   }
-
-  const copyCmd = (cmd) => { navigator.clipboard?.writeText(cmd); notify.success('Copied install command') }
 
   return (
     <div className="p-6 space-y-4">
@@ -150,39 +188,104 @@ export default function Marketplace() {
         <PageLoader label="Loading packages..." />
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {paged.map(pkg => {
-              const Icon = CAT_ICON[pkg.category] || Package
-              const isInst = pkg.installed
-              const isBusy = installing.has(pkg.id)
-              return (
-                <div key={pkg.id} className="panel-card flex flex-col">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isInst ? 'bg-panel-green/15 text-panel-green' : 'bg-panel-accent/15 text-panel-accentLight'}`}><Icon size={18} /></div>
-                      <div>
-                        <p className="font-semibold text-panel-text text-sm">{pkg.name}</p>
-                        <p className="text-xs text-panel-muted capitalize">{pkg.category} • <span className="font-mono">{pkg.id}</span></p>
-                      </div>
-                    </div>
-                    {activeTab === 'marketplace' && <label className="flex items-center"><input type="checkbox" checked={bulk.has(pkg.id)} onChange={() => bulk.toggle(pkg.id)} className="accent-panel-accent" /></label>}
-                    {isInst && <span className="status-badge online flex items-center gap-1"><Check size={12} /> Installed</span>}
-                  </div>
-                  <p className="text-sm text-panel-muted mb-3 line-clamp-2">{pkg.desc}</p>
-                  <div className="bg-panel-bg rounded-md p-2 border border-panel-border flex items-center gap-2 mb-3">
-                    <code className="flex-1 text-xs font-mono text-panel-text truncate">{pkg.install}</code>
-                    <button onClick={() => copyCmd(pkg.install)} className="btn-ghost !px-2 !py-1"><Copy size={13} /></button>
-                  </div>
-                  <div className="mt-auto flex gap-2">
-                    {isInst ? <span className="btn-ghost !py-1.5 flex-1 justify-center text-xs opacity-60">Installed</span> : <button disabled={isBusy} onClick={() => install(pkg.id)} className="btn-accent flex-1 justify-center !py-1.5 text-xs">{isBusy ? <><Loader2 size={13} className="animate-spin" /> Installing...</> : <><Download size={13} /> Install</>}</button>}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="panel-card p-0 overflow-hidden">
+            <div className="px-4 py-2.5 bg-panel-cardHover/50 border-b border-panel-border flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-panel-muted">
+                {activeTab === 'marketplace' ? 'Package Index' : 'Installed Packages'}
+              </span>
+              <span className="font-mono text-[11px] text-panel-muted">Showing {paged.length} of {source.length}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-panel-muted border-b border-panel-border bg-panel-bg/50 uppercase tracking-wider">
+                    {activeTab === 'marketplace' && <th className="px-2 py-2.5 w-8" />}
+                    <th className="px-4 py-2.5 font-medium">Package</th>
+                    <th className="px-4 py-2.5 font-medium hidden md:table-cell">Description</th>
+                    <th className="px-4 py-2.5 font-medium">Category</th>
+                    <th className="px-4 py-2.5 font-medium hidden lg:table-cell">Status</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.map(pkg => {
+                    const Icon = CAT_ICON[pkg.category] || Package
+                    const isInst = pkg.installed
+                    const isBusy = installing.has(pkg.id)
+                    return (
+                      <tr key={pkg.id} className="border-b border-panel-border/50 hover:bg-panel-cardHover/50 transition-colors">
+                        {activeTab === 'marketplace' && (
+                          <td className="px-2 py-3"><input type="checkbox" className="accent-panel-accent" checked={bulk.has(pkg.id)} onChange={() => bulk.toggle(pkg.id)} /></td>
+                        )}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isInst ? 'bg-panel-green/15 text-panel-green' : 'bg-panel-accent/15 text-panel-accentLight'}`}>
+                              <Icon size={17} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-panel-text text-[13px] truncate">{pkg.name}</p>
+                              <p className="text-[11px] text-panel-muted font-mono truncate">{pkg.id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-panel-muted hidden md:table-cell max-w-[320px]"><span className="line-clamp-2">{pkg.desc}</span></td>
+                        <td className="px-4 py-3"><span className="text-[11px] px-2 py-0.5 rounded-full bg-panel-cardHover text-panel-muted capitalize whitespace-nowrap">{pkg.category}</span></td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          {isInst
+                            ? <span className="status-badge online inline-flex items-center gap-1"><Check size={12} /> Installed</span>
+                            : isBusy
+                              ? <span className="inline-flex items-center gap-1.5 text-xs text-panel-accent"><Spinner size={13} /> Installing…</span>
+                              : <span className="text-xs text-panel-muted">Available</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {isInst
+                            ? <span className="text-xs text-panel-muted font-mono">—</span>
+                            : <button disabled={isBusy || overlay} onClick={() => install(pkg.id)}
+                              className="btn-accent !py-1.5 !px-3 text-xs disabled:opacity-50">
+                              {isBusy ? <><Loader2 size={13} className="animate-spin" /> Working…</> : <><Download size={13} /> Install</>}
+                            </button>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4"><Pagination page={page} totalPages={totalPages} onChange={setPage} total={source.length} pageSize={PAGE_SIZE} /></div>
           </div>
-          <Pagination page={page} totalPages={totalPages} onChange={setPage} total={source.length} pageSize={PAGE_SIZE} />
           {paged.length === 0 && <div className="text-center py-12 text-panel-muted">No packages found</div>}
         </>
+      )}
+
+      {/* Install overlay */}
+      {overlay && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="relative w-full max-w-lg panel-card">
+            <div className="flex items-center gap-3 mb-1">
+              <Spinner size={22} className="text-panel-accent shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-panel-text truncate">Installing {overlay.name}</p>
+                <p className="font-mono text-[11px] text-panel-muted">
+                  {overlay.total > 1 ? `package ${overlay.idx} of ${overlay.total} · ` : ''}{elapsed}s elapsed · {overlay.log.length} log lines
+                </p>
+              </div>
+            </div>
+            <div className="h-1.5 bg-panel-cardHover rounded-full overflow-hidden my-3">
+              <div className="route-progress h-full bg-panel-accent rounded-r" />
+            </div>
+            <div ref={logRef} className="bg-panel-bg border border-panel-border/50 rounded-lg p-3 font-mono text-[11px] leading-relaxed h-44 overflow-y-auto flex flex-col gap-0.5">
+              {overlay.log.slice(-30).map((line, i) => (
+                <div key={i} className="text-panel-muted whitespace-pre-wrap break-all">{line}</div>
+              ))}
+              <div className="flex items-center gap-1 text-panel-accent">
+                <span>&gt;</span>
+                <span className="w-2 h-3 bg-panel-accent animate-pulse inline-block" />
+              </div>
+            </div>
+            <p className="text-[11px] text-panel-muted mt-3 font-mono">Running on the host — this can take a few minutes. The job continues server-side.</p>
+          </div>
+        </div>
       )}
     </div>
   )
