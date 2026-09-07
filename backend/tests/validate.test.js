@@ -27,4 +27,8 @@ describe('validate schemas', () => {
     assert.equal(schemas.createContainer.safeParse({ image: '' }).success, false);
     assert.equal(schemas.createContainer.safeParse({ image: 'nginx:alpine' }).success, true);
   });
+  it('createMysqlUser requires strong password', () => {
+    assert.equal(schemas.createMysqlUser.safeParse({ name: 'app', password: 'short' }).success, false);
+    assert.equal(schemas.createMysqlUser.safeParse({ name: 'app', password: 'long-enough-pw' }).success, true);
+  });
 });

@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
+import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy, Table, Leaf } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
 import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner } from '../components/ui.jsx'
-import Pagination, { paginate } from '../components/Pagination.jsx'
-import BulkBar, { useBulk } from '../components/BulkBar.jsx'
+import { formatBytes } from '../lib/utils'
 
-const CATEGORIES = [
-  { id: 'relational', label: 'Relational', tabs: [{ id: 'postgres', label: 'PostgreSQL', icon: Database }] },
-  { id: 'cache', label: 'Cache', tabs: [{ id: 'redis', label: 'Redis', icon: Boxes }, { id: 'memcached', label: 'Memcached', icon: Boxes }] },
-  { id: 'messaging', label: 'Messaging', tabs: [{ id: 'rabbitmq', label: 'RabbitMQ', icon: Server }] },
-  { id: 'ai', label: 'AI', tabs: [{ id: 'ollama', label: 'Ollama', icon: Cpu }] },
+const ENGINES = [
+  { id: 'postgres', label: 'PostgreSQL', icon: Database },
+  { id: 'mysql', label: 'MySQL', icon: Table },
+  { id: 'redis', label: 'Redis', icon: Boxes },
+  { id: 'memcached', label: 'Memcached', icon: Boxes },
+  { id: 'rabbitmq', label: 'RabbitMQ', icon: Server },
+  { id: 'mongo', label: 'MongoDB', icon: Leaf },
+  { id: 'ollama', label: 'Ollama', icon: Cpu },
 ]
-const TABS = CATEGORIES.flatMap(c => c.tabs)
 
 export default function Databases() {
   const notify = useNotify()
@@ -26,18 +27,22 @@ export default function Databases() {
     try {
       const results = await Promise.allSettled([
         api.get('/databases/postgres'),
+        api.get('/databases/mysql'),
         api.get('/databases/redis'),
         api.get('/databases/memcached'),
         api.get('/databases/rabbitmq'),
+        api.get('/databases/mongo'),
         api.get('/databases/ollama'),
       ])
-      const [pgR, redisR, memR, rmqR, olaR] = results
+      const [pgR, myR, redisR, memR, rmqR, mongoR, olaR] = results
       const pg = pgR.status === 'fulfilled' ? pgR.value : []
+      const mysql = myR.status === 'fulfilled' ? myR.value : { running: false, databases: [], users: [] }
       const redis = redisR.status === 'fulfilled' ? redisR.value : { port: 6379, version: 'N/A', running: false, error: redisR.reason?.message }
       const mem = memR.status === 'fulfilled' ? memR.value : { running: false }
       const rmq = rmqR.status === 'fulfilled' ? rmqR.value : { running: false }
+      const mongo = mongoR.status === 'fulfilled' ? mongoR.value : { running: false, databases: [] }
       const ola = olaR.status === 'fulfilled' ? olaR.value : { models: [], running: false }
-      setData({ postgres: pg, redis, memcached: mem, rabbitmq: rmq, ollama: ola })
+      setData({ postgres: pg, mysql, redis, memcached: mem, rabbitmq: rmq, mongo, ollama: ola })
       const failed = results.filter(r => r.status === 'rejected')
       if (failed.length) notify.warning(`${failed.length} service(s) unavailable — showing available data`)
     } catch (e) { notify.error(e.message) }
@@ -48,38 +53,47 @@ export default function Databases() {
 
   const pgClusters = data.postgres || []
   const pgDbCount = pgClusters.reduce((a, s) => a + (s.databases?.length || 0), 0)
-  const engines = [data.redis, data.memcached, data.rabbitmq, data.ollama].filter(Boolean)
-  const enginesUp = engines.filter(e => e.running).length
+  const myDbCount = data.mysql?.databases?.length || 0
+  const totalDbs = pgDbCount + myDbCount + (data.mongo?.databases?.length || 0)
+  const firstOnlineServer = () =>
+    pgClusters.find(s => s.status === 'online') || pgClusters[0] || null
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
         <div>
           <p className="font-mono text-[11px] text-panel-accent uppercase tracking-wider">
-            Data / Engines <span className="text-panel-muted normal-case">postgres · redis · memcached · rabbitmq · ollama</span>
+            Data / Engines <span className="text-panel-muted normal-case">postgres · mysql · redis · mongo · more</span>
           </p>
           <div className="flex items-center gap-3 mt-1">
             <h1 className="text-2xl font-bold text-panel-text tracking-tight">Databases</h1>
             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold uppercase bg-panel-cardHover text-panel-green">
-              {pgDbCount} DBs
+              {totalDbs} DBs
             </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(tab === 'postgres' || tab === 'mysql') && (
+            <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+          )}
           {tab === 'postgres' && data.postgres?.length > 0 && (
-            <>
-              <button className="btn-ghost !py-2 font-mono text-xs" onClick={load}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
-              <button className="btn-accent !py-2" onClick={() => setCreateDb(data.postgres[0])}><Plus size={15} /> New Database</button>
-            </>
+            <button className="btn-accent !py-2" onClick={() => setCreateDb(firstOnlineServer())}><Plus size={15} /> New Database</button>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="panel-card !p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">PG Clusters</p>
-          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{pgClusters.length}</p>
-          <p className="font-mono text-xs text-panel-muted mt-1">{pgDbCount} databases total</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">PostgreSQL</p>
+          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{pgDbCount}</p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{pgClusters.filter(s => s.status === 'online').length}/{pgClusters.length} clusters online</p>
+        </div>
+        <div className="panel-card !p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">MySQL</p>
+          <p className={`font-mono text-2xl font-bold mt-2 ${data.mysql?.running ? 'text-panel-green' : 'text-panel-red'}`}>
+            {data.mysql?.running ? myDbCount : 'down'}
+          </p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{data.mysql?.version?.split('-')[0] || 'not reachable'}</p>
         </div>
         <div className="panel-card !p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Redis</p>
@@ -89,40 +103,39 @@ export default function Databases() {
           <p className="font-mono text-xs text-panel-muted mt-1">v{data.redis?.version || '—'} · :{data.redis?.port || '—'}</p>
         </div>
         <div className="panel-card !p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">Aux Engines</p>
-          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{enginesUp}<span className="text-panel-muted text-sm">/{engines.length}</span></p>
-          <p className="font-mono text-xs text-panel-muted mt-1">running</p>
-        </div>
-        <div className="panel-card !p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">PG Users</p>
-          <p className="font-mono text-2xl font-bold text-panel-text mt-2">{pgClusters.reduce((a, s) => a + (s.users?.length || 0), 0)}</p>
-          <p className="font-mono text-xs text-panel-muted mt-1">roles total</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted">MongoDB</p>
+          <p className={`font-mono text-2xl font-bold mt-2 ${data.mongo?.running ? 'text-panel-green' : 'text-panel-muted'}`}>
+            {data.mongo?.running ? data.mongo.databases.length : 'down'}
+          </p>
+          <p className="font-mono text-xs text-panel-muted mt-1">{data.mongo?.running ? 'databases' : 'server stopped'}</p>
         </div>
       </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-3 bg-panel-card p-2 rounded-lg border border-panel-border overflow-x-auto">
-          {CATEGORIES.map(cat => (
-            <div key={cat.id} className="flex items-center gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-panel-muted/60 px-1">{cat.label}</span>
-              <div className="flex gap-1">
-                {cat.tabs.map(t => (
-                  <button key={t.id}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap ${tab === t.id ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted hover:text-panel-text hover:bg-panel-bg'}`}
-                    onClick={() => setTab(t.id)}>
-                    <t.icon size={14} /> {t.label}
-                  </button>
-                ))}
-              </div>
-              {cat.id !== CATEGORIES[CATEGORIES.length-1].id && <div className="w-px h-6 bg-panel-border mx-2" />}
-            </div>
-          ))}
+        <div className="flex gap-1 bg-panel-card p-1.5 rounded-lg border border-panel-border overflow-x-auto">
+          {ENGINES.map(t => {
+            const dot = t.id === 'postgres' ? (data.postgres?.some(s => s.status === 'online') ? 'bg-panel-green' : 'bg-panel-muted')
+              : t.id === 'mysql' ? (data.mysql?.running ? 'bg-panel-green' : 'bg-panel-muted')
+              : t.id === 'mongo' ? (data.mongo?.running ? 'bg-panel-green' : 'bg-panel-muted')
+              : t.id === 'redis' ? (data.redis?.running ? 'bg-panel-green' : 'bg-panel-muted')
+              : 'bg-panel-muted'
+            return (
+              <button key={t.id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap ${tab === t.id ? 'bg-panel-accent text-panel-onaccent font-medium' : 'text-panel-muted hover:text-panel-text hover:bg-panel-bg'}`}
+                onClick={() => setTab(t.id)}>
+                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                <t.icon size={14} /> {t.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {tab === 'postgres' && <PostgresTab servers={data.postgres} onNewDb={setCreateDb} onNewUser={setCreateUser} reload={load} notify={notify} />}
+      {tab === 'mysql' && <MysqlTab data={data.mysql} reload={load} notify={notify} />}
       {tab === 'redis' && <RedisTab data={data.redis} notify={notify} />}
       {tab === 'memcached' && <MemcachedTab data={data.memcached} />}
       {tab === 'rabbitmq' && <RabbitmqTab data={data.rabbitmq} />}
+      {tab === 'mongo' && <MongoTab data={data.mongo} reload={load} notify={notify} />}
       {tab === 'ollama' && <OllamaTab data={data.ollama} />}
 
       {createDb && (
@@ -303,6 +316,228 @@ function generatePassword(len = 16) {
   return pw
 }
 
+function MysqlTab({ data, reload, notify }) {
+  const [confirmDelDb, setConfirmDelDb] = useState(null)
+  const [confirmDelUser, setConfirmDelUser] = useState(null)
+  const [showDb, setShowDb] = useState(false)
+  const [showUser, setShowUser] = useState(false)
+
+  if (!data) return <Loading />
+  if (!data.running) {
+    return <EmptyState icon={Table} title="MySQL / MariaDB not reachable" subtitle="Start mariadb (systemctl start mariadb) — root connects via unix socket" />
+  }
+
+  const delDb = async (name) => {
+    try { await api.del(`/databases/mysql/databases/${name}`); notify.success(`Database '${name}' dropped`); reload() }
+    catch (e) { notify.error(e.message) }
+  }
+  const delUser = async (u) => {
+    try { await api.del(`/databases/mysql/users/${u.user}?host=${encodeURIComponent(u.host)}`); notify.success(`User '${u.user}' dropped`); reload() }
+    catch (e) { notify.error(e.message) }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="panel-card">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-panel-blue/15 flex items-center justify-center"><Table size={20} className="text-panel-blue" /></div>
+            <div>
+              <p className="font-semibold text-panel-text">MySQL / MariaDB</p>
+              <p className="text-xs text-panel-muted font-mono">{data.version || ''}</p>
+            </div>
+          </div>
+          <span className="status-badge online">Running</span>
+        </div>
+      </div>
+
+      <div className="panel-card p-0 overflow-hidden">
+        <div className="px-4 py-2.5 bg-panel-cardHover/50 border-b border-panel-border flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-panel-muted">Databases · {data.databases.length}</span>
+          <button className="btn-accent !py-1.5 !px-3 text-xs" onClick={() => setShowDb(true)}><Plus size={13} /> New Database</button>
+        </div>
+        <table className="w-full text-sm font-mono">
+          <thead><tr className="text-left text-[11px] text-panel-muted border-b border-panel-border bg-panel-bg/50 uppercase tracking-wider">
+            <th className="px-4 py-2.5 font-medium">Name</th><th className="px-4 py-2.5 font-medium">Size</th><th className="px-4 py-2.5 font-medium text-right">Actions</th>
+          </tr></thead>
+          <tbody>
+            {data.databases.map(db => (
+              <tr key={db.name} className="border-b border-panel-border/50 hover:bg-panel-cardHover/50">
+                <td className="px-4 py-2.5 text-[13px] font-semibold text-panel-text">{db.name}</td>
+                <td className="px-4 py-2.5 text-xs text-panel-muted">{formatBytes(db.size || 0)}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <button className="btn !px-2 !py-1" title="Drop database" onClick={() => setConfirmDelDb(db)}><Trash2 size={13} className="text-panel-red" /></button>
+                </td>
+              </tr>
+            ))}
+            {data.databases.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-panel-muted text-sm font-sans">No user databases</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="panel-card p-0 overflow-hidden">
+        <div className="px-4 py-2.5 bg-panel-cardHover/50 border-b border-panel-border flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-panel-muted">Users · {data.users.length}</span>
+          <button className="btn-ghost !py-1.5 !px-3 text-xs" onClick={() => setShowUser(true)}><Plus size={13} /> New User</button>
+        </div>
+        <table className="w-full text-sm font-mono">
+          <thead><tr className="text-left text-[11px] text-panel-muted border-b border-panel-border bg-panel-bg/50 uppercase tracking-wider">
+            <th className="px-4 py-2.5 font-medium">User</th><th className="px-4 py-2.5 font-medium">Host</th><th className="px-4 py-2.5 font-medium text-right">Actions</th>
+          </tr></thead>
+          <tbody>
+            {data.users.map((u, i) => (
+              <tr key={`${u.user}@${u.host}`} className="border-b border-panel-border/50 hover:bg-panel-cardHover/50">
+                <td className="px-4 py-2.5 text-[13px] font-semibold text-panel-text">{u.user}</td>
+                <td className="px-4 py-2.5 text-xs text-panel-muted">{u.host}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <button className="btn !px-2 !py-1" title="Drop user" onClick={() => setConfirmDelUser(u)}><Trash2 size={13} className="text-panel-red" /></button>
+                </td>
+              </tr>
+            ))}
+            {data.users.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-panel-muted text-sm font-sans">No users</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <ConfirmModal open={!!confirmDelDb} onClose={() => setConfirmDelDb(null)}
+        onConfirm={() => confirmDelDb && delDb(confirmDelDb.name)} title="Drop database" confirmText="Drop"
+        message={`Drop MySQL database '${confirmDelDb?.name}'? All data will be permanently deleted.`} />
+      <ConfirmModal open={!!confirmDelUser} onClose={() => setConfirmDelUser(null)}
+        onConfirm={() => confirmDelUser && delUser(confirmDelUser)} title="Drop user" confirmText="Drop"
+        message={`Drop user '${confirmDelUser?.user}'@'${confirmDelUser?.host}'?`} />
+      <MysqlDbModal open={showDb} onClose={() => setShowDb(false)} onCreated={(m) => { notify.success(m); reload() }} />
+      <MysqlUserModal open={showUser} onClose={() => setShowUser(false)} onCreated={(m) => { notify.success(m); reload() }} />
+    </div>
+  )
+}
+
+function MysqlDbModal({ open, onClose, onCreated }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  if (!open) return null
+  const submit = async () => {
+    if (!name) return setErr('Database name required')
+    setBusy(true); setErr(null)
+    try {
+      await api.post('/databases/mysql/databases', { name })
+      onCreated(`Database '${name}' created`)
+      onClose()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title="Create MySQL Database">
+      <div className="space-y-4">
+        <Field label="Database name">
+          <input className="input-field font-mono" placeholder="myapp_db" value={name}
+            onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} />
+        </Field>
+        {err && <p className="text-sm text-panel-red">{err}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? 'Creating…' : 'Create'}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function MysqlUserModal({ open, onClose, onCreated }) {
+  const [form, setForm] = useState({ name: '', password: '', host: '%' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  if (!open) return null
+  const submit = async () => {
+    if (!form.name) return setErr('Username required')
+    if ((form.password || '').length < 8) return setErr('Password must be at least 8 characters')
+    setBusy(true); setErr(null)
+    try {
+      await api.post('/databases/mysql/users', form)
+      onCreated(`User '${form.name}' created`)
+      onClose()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title="Create MySQL User">
+      <div className="space-y-4">
+        <Field label="Username">
+          <input className="input-field font-mono" value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })} />
+        </Field>
+        <Field label="Password" hint="Minimum 8 characters">
+          <input className="input-field font-mono" type="password" autoComplete="new-password" value={form.password}
+            onChange={e => setForm({ ...form, password: e.target.value })} />
+        </Field>
+        <Field label="Host" hint="% allows any host">
+          <input className="input-field font-mono" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
+        </Field>
+        {err && <p className="text-sm text-panel-red">{err}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? 'Creating…' : 'Create'}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function MongoTab({ data, reload, notify }) {
+  const [confirmDel, setConfirmDel] = useState(null)
+  const [starting, setStarting] = useState(false)
+
+  if (!data) return <Loading />
+  if (!data.running) {
+    return (
+      <div className="panel-card text-center py-14">
+        <Leaf size={40} className="mx-auto mb-3 opacity-40 text-panel-muted" />
+        <p className="text-lg text-panel-text">MongoDB server stopped</p>
+        <p className="text-sm text-panel-muted mt-1 mb-4">Databases appear here once mongod is running.</p>
+        <button className="btn-accent" disabled={starting} onClick={async () => {
+          setStarting(true)
+          try { await api.post('/databases/mongo/start'); notify.success('mongod start requested'); setTimeout(reload, 3000) }
+          catch (e) { notify.error(e.message) } finally { setStarting(false) }
+        }}>{starting ? 'Starting…' : 'Start mongod'}</button>
+      </div>
+    )
+  }
+
+  const delDb = async (name) => {
+    try { await api.del(`/databases/mongo/databases/${name}`); notify.success(`Database '${name}' dropped`); reload() }
+    catch (e) { notify.error(e.message) }
+  }
+
+  return (
+    <div className="panel-card p-0 overflow-hidden">
+      <div className="px-4 py-2.5 bg-panel-cardHover/50 border-b border-panel-border flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-panel-muted">
+          Databases · {data.databases.length}
+        </span>
+        <span className="font-mono text-[11px] text-panel-muted">v{data.version || '—'} · databases are created on first write</span>
+      </div>
+      <table className="w-full text-sm font-mono">
+        <thead><tr className="text-left text-[11px] text-panel-muted border-b border-panel-border bg-panel-bg/50 uppercase tracking-wider">
+          <th className="px-4 py-2.5 font-medium">Name</th><th className="px-4 py-2.5 font-medium">Size on disk</th><th className="px-4 py-2.5 font-medium text-right">Actions</th>
+        </tr></thead>
+        <tbody>
+          {data.databases.map(db => (
+            <tr key={db.name} className="border-b border-panel-border/50 hover:bg-panel-cardHover/50">
+              <td className="px-4 py-2.5 text-[13px] font-semibold text-panel-text">{db.name}</td>
+              <td className="px-4 py-2.5 text-xs text-panel-muted">{formatBytes(db.size || 0)}</td>
+              <td className="px-4 py-2.5 text-right">
+                <button className="btn !px-2 !py-1" title="Drop database" onClick={() => setConfirmDel(db)}><Trash2 size={13} className="text-panel-red" /></button>
+              </td>
+            </tr>
+          ))}
+          {data.databases.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-panel-muted text-sm font-sans">No databases yet — write to one from your app</td></tr>}
+        </tbody>
+      </table>
+      <ConfirmModal open={!!confirmDel} onClose={() => setConfirmDel(null)}
+        onConfirm={() => confirmDel && delDb(confirmDel.name)} title="Drop database" confirmText="Drop"
+        message={`Drop MongoDB database '${confirmDel?.name}'? All collections will be permanently deleted.`} />
+    </div>
+  )
+}
+
 function RedisTab({ data, notify }) {
   if (!data) return <Loading />
   return (
@@ -398,11 +633,3 @@ function MiniMetric({ label, value }) {
 }
 
 function Loading() { return <div className="panel-card h-40 flex items-center justify-center gap-2 text-panel-muted text-sm"><Spinner size={18} className="text-panel-accent" /> Loading...</div> }
-
-function formatBytes(bytes) {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}

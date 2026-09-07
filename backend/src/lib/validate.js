@@ -15,21 +15,26 @@ export const schemas = {
   // postgres
   createDatabase: z.object({
     name: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_]+$/, 'Invalid database name'),
-    cluster: z.enum(['14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
+  }),
+  createMysqlUser: z.object({
+    name: z.string().min(1).max(32).regex(/^[a-zA-Z0-9_]+$/, 'Invalid username'),
+    password: z.string().min(8).max(255),
+    host: z.string().min(1).max(255).optional(),
   }),
   dropDatabase: z.object({
-    cluster: z.enum(['14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
   }),
   createUser: z.object({
     name: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_]+$/, 'Invalid username'),
     password: z.string().min(8).max(128),
-    cluster: z.enum(['14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
   }),
   grant: z.object({
     database: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_]+$/),
     user: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_]+$/),
     privileges: z.string().max(64).optional(),
-    cluster: z.enum(['14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
   }),
 
   // pm2
@@ -58,13 +63,13 @@ export const schemas = {
   // backups
   createDbBackup: z.object({
     database: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_.-]+$/),
-    cluster: z.enum(['pg14', 'pg17', '14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
     label: z.string().max(64).optional(),
   }),
   restoreDbBackup: z.object({
     filename: z.string().min(1).max(256).regex(/^[a-zA-Z0-9_.-]+$/),
     database: z.string().min(1).max(63).regex(/^[a-zA-Z0-9_]+$/),
-    cluster: z.enum(['pg14', 'pg17', '14/main', '17/main']).optional(),
+    cluster: z.string().min(1).max(64).optional(),
   }),
 
   // cron

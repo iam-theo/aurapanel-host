@@ -8,7 +8,19 @@ function buildSudo(cmd) {
     const pw = SUDO_PASSWORD.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
     return `printf '%s\\n' '${pw}' | sudo -S -p '' ${script} 2>&1`;
   }
-  return `sudo -n bash -c ${JSON.stringify(cmd)} 2>&1 || echo "__SUDO_NEEDS_PASSWORD__"`;
+  // NOTE: no `|| echo` fallback here — a failing command must surface its
+  // real error. Sudo-auth failure is detected from sudo's own diagnostics.
+  return `sudo -n bash -c ${JSON.stringify(cmd)} 2>&1`;
+}
+
+function isSudoAuthFailure(text) {
+  return /sudo:\s|a password is required|no tty present|no new privileges/i.test(String(text || ''));
+}
+
+export function sudoElevationError() {
+  const e = new Error('Operation requires sudo elevation. Set the SUDO_PASSWORD env var to enable privileged operations.');
+  e.code = 'SUDO_NEEDS_PASSWORD';
+  return e;
 }
 
 export function run(cmd, { sudo = false, shell = '/bin/bash', timeout = 20000 } = {}) {
@@ -21,17 +33,16 @@ export function run(cmd, { sudo = false, shell = '/bin/bash', timeout = 20000 } 
       shell,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    if (!pw && out.includes('__SUDO_NEEDS_PASSWORD__')) {
-      const e = new Error('Operation requires sudo elevation. Set the SUDO_PASSWORD env var to enable privileged operations.');
-      e.code = 'SUDO_NEEDS_PASSWORD';
-      throw e;
-    }
+    if (!pw && isSudoAuthFailure(out)) throw sudoElevationError();
     return out;
   } catch (err) {
     if (err.code === 'SUDO_NEEDS_PASSWORD') throw err;
-    if (!pw && (String(err.message).includes('sudo') || String(err.message).includes('a password is required'))) {
-      const e = new Error('Operation requires sudo elevation. Set the SUDO_PASSWORD env var to enable privileged operations.');
-      e.code = 'SUDO_NEEDS_PASSWORD';
+    const combined = String((err.stdout || '') + (err.stderr || '') + err.message);
+    if (!pw && isSudoAuthFailure(combined)) throw sudoElevationError();
+    // Surface the command's real output instead of a generic exec error
+    if (err.stdout) {
+      const e = new Error(String(err.stdout).trim().slice(0, 2000) || err.message);
+      e.code = err.code;
       throw e;
     }
     throw err;

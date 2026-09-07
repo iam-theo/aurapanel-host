@@ -11,7 +11,19 @@ function buildSudo(cmd) {
     const esc = pw.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
     return `printf '%s\\n' '${esc}' | sudo -S -p '' ${script} 2>&1`;
   }
-  return `sudo -n bash -c ${JSON.stringify(cmd)} 2>&1 || echo "__SUDO_NEEDS_PASSWORD__"`;
+  // NOTE: no `|| echo` fallback — a failing command must surface its real
+  // error. Sudo-auth failure is detected from sudo's own diagnostics.
+  return `sudo -n bash -c ${JSON.stringify(cmd)} 2>&1`;
+}
+
+function isSudoAuthFailure(text) {
+  return /sudo:\s|a password is required|no tty present|no new privileges/i.test(String(text || ''));
+}
+
+export function sudoElevationError() {
+  const e = new Error('Operation requires sudo elevation. Set SUDO_PASSWORD env or /run/secrets/sudo_password');
+  e.code = 'SUDO_NEEDS_PASSWORD';
+  return e;
 }
 
 export async function runAsync(cmd, { sudo = false, timeout = 20000 } = {}) {
@@ -20,23 +32,15 @@ export async function runAsync(cmd, { sudo = false, timeout = 20000 } = {}) {
     const { stdout } = await execAsyncRaw(fullCmd, { timeout, maxBuffer: 10 * 1024 * 1024 });
     const out = stdout || '';
     const pw = getSecret('SUDO_PASSWORD');
-    if (!pw && out.includes('__SUDO_NEEDS_PASSWORD__')) {
-      const e = new Error('Operation requires sudo elevation. Set SUDO_PASSWORD env or /run/secrets/sudo_password');
-      e.code = 'SUDO_NEEDS_PASSWORD';
-      throw e;
-    }
+    if (!pw && isSudoAuthFailure(out)) throw sudoElevationError();
     return out;
   } catch (err) {
     if (err.code === 'SUDO_NEEDS_PASSWORD') throw err;
-    const msg = String(err.message || '');
+    const combined = String((err.stdout || '') + (err.stderr || '') + err.message);
     const pw = getSecret('SUDO_PASSWORD');
-    if (!pw && (msg.includes('sudo') || msg.includes('a password is required'))) {
-      const e = new Error('Operation requires sudo elevation. Set SUDO_PASSWORD');
-      e.code = 'SUDO_NEEDS_PASSWORD';
-      throw e;
-    }
-    // Include stdout in error for debugging
-    if (err.stdout) err.message = `${err.message}\n${err.stdout}`;
+    if (!pw && isSudoAuthFailure(combined)) throw sudoElevationError();
+    // Surface the command's real output instead of a generic exec error
+    if (err.stdout) err.message = `${String(err.stdout).trim().slice(0, 2000)}`;
     throw err;
   }
 }
