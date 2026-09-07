@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import si from 'systeminformation';
+import { loadavg } from 'os';
 import { execSync } from 'child_process';
 import { requireRole } from '../lib/auth.js';
 
@@ -41,7 +42,7 @@ router.get('/overview', async (req, res) => {
         cores: cpu.cores,
         physicalCores: cpu.physicalCores,
         usage: Math.round(load.currentLoad * 100) / 100,
-        loadAvg: load.avgLoad,
+        loadAvg: loadavg().slice(0, 3),
       },
       memory: {
         total: mem.total,

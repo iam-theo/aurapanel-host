@@ -128,9 +128,18 @@ router.get('/docker/:id', (req, res) => {
 router.get('/journal', async (req, res) => {
   const unit = String(req.query.unit || '').trim();
   const lines = Math.min(parseInt(req.query.lines || '200', 10) || 200, 2000);
-  const since = String(req.query.since || '1h');
+  const sinceRaw = String(req.query.since || '1h');
   const grep = String(req.query.grep || '').trim();
   const priority = String(req.query.priority || '').trim(); // e.g. err
+
+  // journalctl rejects bare spans like "1h" — normalize to "<n> <unit> ago"
+  const normalizeSince = (s) => {
+    if (s === 'today' || s === 'yesterday') return s;
+    const m = /^(\d+)(s|min|m|h|d|w)?$/.exec(s);
+    if (!m) return null;
+    const word = { s: 'seconds', min: 'minutes', m: 'minutes', h: 'hours', d: 'days', w: 'weeks' }[m[2] || 's'];
+    return `${m[1]} ${word} ago`;
+  };
 
   let cmd = `journalctl --no-pager -n ${lines}`;
   if (unit) {
@@ -138,25 +147,35 @@ router.get('/journal', async (req, res) => {
     if (!/^[a-zA-Z0-9@._-]+$/.test(unit)) return res.status(400).json({ error: 'Invalid unit' });
     cmd += ` -u ${unit}`;
   }
-  if (since) {
-    if (!/^[0-9]+(s|min|m|h|d|w)?$/.test(since) && since !== 'today' && since !== 'yesterday') {
-      // allow e.g. "1 hour ago" style? keep simple; else ignore
-    } else {
-      cmd += ` --since "${since}"`;
-    }
-  }
+  const since = normalizeSince(sinceRaw);
+  if (since) cmd += ` --since "${since}"`;
   if (priority && /^[0-7]$/.test(priority)) cmd += ` -p ${priority}`;
   cmd += ' 2>&1';
 
+  const applyGrep = (out) => {
+    if (!grep) return out;
+    const safe = grep.replace(/[^a-zA-Z0-9 _.-]/g, '').slice(0, 80);
+    return out.split('\n').filter(l => l.toLowerCase().includes(safe.toLowerCase())).join('\n');
+  };
+
   try {
-    let out = await runAsync(cmd, { timeout: 10000 });
-    if (grep) {
-      const safe = grep.replace(/[^a-zA-Z0-9 _.-]/g, '').slice(0, 80);
-      const filtered = out.split('\n').filter(l => l.toLowerCase().includes(safe.toLowerCase()));
-      out = filtered.join('\n');
-    }
-    res.json({ unit: unit || 'all', lines, since, grep: grep || null, logs: out.slice(0, 80000) });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const out = await runAsync(cmd, { timeout: 10000 });
+    res.json({ unit: unit || 'all', lines, since: sinceRaw, grep: grep || null, logs: applyGrep(out).slice(0, 80000) });
+  } catch (e) {
+    // No persistent journal on this host (containers, syslog-only) —
+    // degrade to the kernel ring buffer instead of a bare 500.
+    try {
+      const dmesg = await runAsync(`dmesg -T 2>/dev/null | tail -n ${lines} 2>&1 || dmesg 2>/dev/null | tail -n ${lines}`, { timeout: 10000 });
+      if (dmesg.trim()) {
+        return res.json({
+          unit: unit || 'all', lines, since: sinceRaw, grep: grep || null,
+          logs: applyGrep(dmesg).slice(0, 80000),
+          notice: 'System journal unavailable — showing kernel ring buffer',
+        });
+      }
+    } catch {}
+    res.json({ unit: unit || 'all', lines, since: sinceRaw, grep: grep || null, logs: '', notice: 'No journal or kernel logs available on this host' });
+  }
 });
 
 // GET /api/logs/nginx/:site?  access/error

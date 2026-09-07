@@ -55,6 +55,7 @@ export default function Dashboard() {
   }, [])
 
   // Live journal tail
+  const [journalNotice, setJournalNotice] = useState(null)
   useEffect(() => {
     let stop = false
     let t
@@ -63,7 +64,10 @@ export default function Dashboard() {
         const params = new URLSearchParams({ lines: '25', since: '1h' })
         if (journalUnit.trim()) params.set('unit', journalUnit.trim())
         const d = await api.get(`/logs/journal?${params}`)
-        if (!stop) setJournal(String(d.logs || '').split('\n').filter(Boolean).slice(-25))
+        if (!stop) {
+          setJournal(String(d.logs || '').split('\n').filter(Boolean).slice(-25))
+          setJournalNotice(d.notice || null)
+        }
       } catch {}
     }
     tail()
@@ -100,6 +104,7 @@ export default function Dashboard() {
     rxSec: acc.rxSec + (n.rxSec || 0), txSec: acc.txSec + (n.txSec || 0),
   }), { rx: 0, tx: 0, rxSec: 0, txSec: 0 })
   const topProcs = (procData?.list || []).slice(0, 5)
+  const loadAvgs = Array.isArray(data.cpu.loadAvg) ? data.cpu.loadAvg : []
   const shownServices = (services || []).slice(0, 6)
   const healthyServices = (services || []).filter(s => s.active).length
 
@@ -202,7 +207,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
           <div className="flex items-center gap-4 pt-1 font-mono text-xs text-panel-muted">
-            {(data.cpu.loadAvg || []).map((v, i) => (
+            {loadAvgs.map((v, i) => (
               <span key={i}>{['1m', '5m', '15m'][i]}: <strong className="text-panel-text">{Number(v).toFixed(2)}</strong></span>
             ))}
           </div>
@@ -383,7 +388,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-panel-bg rounded-lg p-3 flex flex-col gap-1 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-64 overflow-y-auto border border-panel-border/50">
-          {filteredJournal.length === 0 && <p className="text-panel-muted">No journal lines in the last hour.</p>}
+          {journalNotice && <p className="text-panel-yellow whitespace-nowrap">△ {journalNotice}</p>}
+          {filteredJournal.length === 0 && !journalNotice && <p className="text-panel-muted">No journal lines in the last hour.</p>}
           {filteredJournal.map((line, i) => <JournalLine key={`${i}-${line.slice(0, 24)}`} line={line} />)}
           <div className="flex items-center gap-1 text-panel-accent pt-0.5">
             <span>&gt;</span>
