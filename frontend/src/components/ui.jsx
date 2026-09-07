@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children, className }) {
   if (!open) return null
@@ -46,6 +46,24 @@ export function EmptyState({ icon: Icon, title, subtitle }) {
       <Icon size={40} className="mx-auto mb-3 opacity-40" />
       <p className="text-lg text-panel-text">{title}</p>
       {subtitle && <p className="text-sm text-panel-muted mt-1">{subtitle}</p>}
+    </div>
+  )
+}
+
+// Inline spinner for buttons and refresh indicators
+export function Spinner({ size = 16, className = '' }) {
+  return <Loader2 size={size} className={`animate-spin ${className}`} aria-hidden />
+}
+
+// Centered page/section loader — use for initial loads and route
+// transitions instead of flashing skeleton blocks. Background refreshes
+// must keep stale content visible and use Spinner, not this.
+export function PageLoader({ label = 'Loading...', className = '' }) {
+  return (
+    <div role="status" aria-live="polite"
+      className={`flex flex-col items-center justify-center gap-3 py-20 text-panel-muted ${className}`}>
+      <Loader2 size={30} className="animate-spin text-panel-accent" aria-hidden />
+      <p className="text-sm">{label}</p>
     </div>
   )
 }

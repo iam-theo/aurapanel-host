@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Bot, RefreshCw, Clock, Loader2, ExternalLink, Shield, Activity, Server, Package, ScrollText, Sparkles, Globe, Zap, ArrowUpRight, MessageSquare, Plus, Square, Send, ChevronDown, Wrench, FileCode, Terminal, Search, AlertTriangle, CheckCircle2, XCircle, Lightbulb, ArrowRight, ListTodo, Check, Circle, SkipForward, CornerDownLeft } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
+import { PageLoader } from '../components/ui.jsx'
 
 export default function Aurex() {
   const notify = useNotify()
@@ -260,13 +261,8 @@ export default function Aurex() {
   }, [composer])
 
   if (loading) return (
-    <div className="p-8 space-y-4 bg-[#0f1115] min-h-full">
-      <div className="h-28 bg-[#1a1d24] rounded-2xl animate-pulse border border-white/5" />
-      <div className="max-w-3xl mx-auto space-y-3 pt-12">
-        <div className="h-6 w-2/3 bg-white/5 rounded-full animate-pulse mx-auto" />
-        <div className="h-4 w-1/2 bg-white/5 rounded-full animate-pulse mx-auto" />
-        <div className="grid grid-cols-2 gap-3 pt-6"><div className="h-20 bg-white/[0.03] rounded-2xl animate-pulse" /><div className="h-20 bg-white/[0.03] rounded-2xl animate-pulse" /><div className="h-20 bg-white/[0.03] rounded-2xl animate-pulse" /><div className="h-20 bg-white/[0.03] rounded-2xl animate-pulse" /></div>
-      </div>
+    <div className="bg-[#0f1115] min-h-full">
+      <PageLoader label="Connecting to Aurex..." className="min-h-[60vh]" />
     </div>
   )
 

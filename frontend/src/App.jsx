@@ -5,7 +5,7 @@ import { NotifyProvider } from './context/NotifyContext'
 import { ThemeProvider } from './context/ThemeContext'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
-import { Skeleton } from './components/Skeleton.jsx'
+import { PageLoader } from './components/ui.jsx'
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Processes = lazy(() => import('./pages/Processes.jsx'))
@@ -25,14 +25,14 @@ const Aurex = lazy(() => import('./pages/Aurex.jsx'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="p-8 space-y-3"><Skeleton className="h-6 w-1/3" /><Skeleton className="h-24 w-full" /></div>
+  if (loading) return <div className="p-8"><PageLoader label="Signing you in..." /></div>
   // If auth is disabled on backend, user will be 'dev' even without token — allow
   if (!user) return <Navigate to="/login" replace />
   return children
 }
 
 function Fallback() {
-  return <div className="p-8 space-y-4"><div className="h-6 w-1/4 bg-panel-border/60 rounded animate-pulse" /><div className="h-32 bg-panel-border/40 rounded animate-pulse" /></div>
+  return <div className="p-8"><PageLoader label="Loading page..." className="min-h-[50vh]" /></div>
 }
 
 export default function App() {

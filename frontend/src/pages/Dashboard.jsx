@@ -7,6 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { api } from '../lib/api'
 import { useSWR } from '../lib/useSWR'
 import { useTheme, panelVar } from '../context/ThemeContext'
+import { PageLoader } from '../components/ui.jsx'
 import { formatBytes, formatUptime } from '../lib/utils'
 
 export default function Dashboard() {
@@ -58,10 +59,8 @@ export default function Dashboard() {
 
   if (isInitial) {
     return (
-      <div className="p-8 space-y-6 animate-pulse">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="panel-card h-24 bg-panel-card/50" />
-        ))}
+      <div className="p-8">
+        <PageLoader label="Loading server overview..." className="min-h-[50vh]" />
       </div>
     )
   }

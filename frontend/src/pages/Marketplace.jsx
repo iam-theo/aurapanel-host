@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, Download, Check, Package, Boxes, Globe, Database, Server, Activity, Copy, RefreshCw, Trash2, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
+import { PageLoader } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -21,13 +22,15 @@ export default function Marketplace() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [installing, setInstalling] = useState(new Set())
+  // First load shows the spinner; later refreshes keep stale results visible
+  const [initialized, setInitialized] = useState(false)
 
   const loadMarketplace = async () => {
     setLoading(true)
     try {
       const d = await api.get(`/packages/marketplace?category=${category}&q=${encodeURIComponent(q)}`)
       setData(d)
-    } catch (e) { notify.error(e.message) } finally { setLoading(false) }
+    } catch (e) { notify.error(e.message) } finally { setLoading(false); setInitialized(true) }
   }
   const loadInstalled = async () => {
     try {
@@ -113,8 +116,8 @@ export default function Marketplace() {
         <BulkBar count={bulk.count} onClear={bulk.clear} actions={[{ label: 'Install selected', icon: <Download size={13} />, onClick: bulkInstall }]} />
       )}
 
-      {loading ? (
-        <div className="panel-card h-40 flex items-center justify-center animate-pulse text-panel-muted">Loading packages...</div>
+      {!initialized ? (
+        <PageLoader label="Loading packages..." />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

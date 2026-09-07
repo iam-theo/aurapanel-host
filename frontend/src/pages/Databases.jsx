@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
-import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
+import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -352,7 +352,7 @@ function MiniMetric({ label, value }) {
   )
 }
 
-function Loading() { return <div className="panel-card h-40 flex items-center justify-center animate-pulse text-panel-muted">Loading...</div> }
+function Loading() { return <div className="panel-card h-40 flex items-center justify-center gap-2 text-panel-muted text-sm"><Spinner size={18} className="text-panel-accent" /> Loading...</div> }
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
