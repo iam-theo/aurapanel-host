@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import si from 'systeminformation';
 import { execSync } from 'child_process';
+import { requireRole } from '../lib/auth.js';
 
 const router = Router();
 
@@ -40,11 +41,14 @@ router.get('/overview', async (req, res) => {
         cores: cpu.cores,
         physicalCores: cpu.physicalCores,
         usage: Math.round(load.currentLoad * 100) / 100,
+        loadAvg: load.avgLoad,
       },
       memory: {
         total: mem.total,
         used: mem.used,
         free: mem.free,
+        buffers: mem.buffers || 0,
+        cached: mem.cached || 0,
         usagePercent: Math.round((mem.used / mem.total) * 10000) / 100,
       },
       disk: disk.map(d => ({
@@ -130,6 +134,21 @@ router.get('/processes', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system/reboot — admin only, audited
+router.post('/reboot', requireRole('admin'), (req, res) => {
+  req.audit?.('system.reboot', 'host', {});
+  try {
+    // fire-and-forget: the host goes down, so respond first
+    res.json({ success: true, message: 'Reboot initiated' });
+    setTimeout(() => {
+      try { execSync('shutdown -r +1 "ServerPanel reboot requested"'); } catch {}
+    }, 500);
+  } catch (err) {
+    req.audit?.('system.reboot', 'host', { error: err.message }, 'failure');
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 

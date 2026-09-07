@@ -57,7 +57,7 @@ export default function Login() {
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password"
             className="mt-1 w-full bg-panel-bg border border-panel-border rounded-lg px-3 py-2 text-sm text-panel-text outline-none focus:border-panel-blue" placeholder="••••••••" />
         </div>
-        <button disabled={loading} className="w-full bg-panel-blue hover:bg-panel-blue/90 text-white rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60">
+        <button disabled={loading} className="w-full bg-panel-blue hover:bg-panel-blue/90 text-panel-onaccent rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60">
           {loading && <Loader2 size={16} className="animate-spin" />} Sign in
         </button>
         <p className="text-xs text-panel-muted text-center">Default: admin / admin123 — change immediately</p>

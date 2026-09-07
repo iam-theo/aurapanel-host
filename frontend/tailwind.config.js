@@ -6,6 +6,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       colors: {
         // Theme-aware palette: values resolve from CSS variables so a single
         // `light` class on <html> switches the whole UI between dark/light.
@@ -20,6 +24,7 @@ export default {
           muted: 'rgb(var(--panel-muted) / <alpha-value>)',
           accent: 'rgb(var(--panel-accent) / <alpha-value>)',
           accentLight: 'rgb(var(--panel-accentLight) / <alpha-value>)',
+          onaccent: 'rgb(var(--panel-onaccent) / <alpha-value>)',
           green: 'rgb(var(--panel-green) / <alpha-value>)',
           yellow: 'rgb(var(--panel-yellow) / <alpha-value>)',
           red: 'rgb(var(--panel-red) / <alpha-value>)',

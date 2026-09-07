@@ -7,6 +7,7 @@ import {
 import { api } from '../lib/api'
 import { formatBytes } from '../lib/utils'
 import { useNotify } from '../context/NotifyContext'
+import { PageHeader } from '../components/ui.jsx'
 
 const CODE_EXT = ['js', 'jsx', 'ts', 'tsx', 'py', 'json', 'html', 'css', 'yml', 'yaml', 'md', 'sh', 'env', 'conf', 'sql', 'c', 'cpp', 'h', 'go', 'rb', 'php', 'txt', 'log', 'xml', 'vue', 'svelte', 'toml', 'ini', 'tf']
 const EXT_COLORS = {
@@ -305,6 +306,15 @@ export default function Files() {
 
   return (
     <div className="p-6 space-y-4">
+      <PageHeader
+        icon={Folder}
+        title="File Manager"
+        subtitle={path}
+        stats={[
+          { value: items.length, label: 'items' },
+          ...(selected.size ? [{ value: selected.size, label: 'selected' }] : []),
+        ]}
+      />
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 bg-panel-card border border-panel-border rounded-lg p-2">
         <span className="flex items-center gap-1 text-xs text-panel-muted px-2">

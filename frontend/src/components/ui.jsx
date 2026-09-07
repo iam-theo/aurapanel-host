@@ -50,6 +50,32 @@ export function EmptyState({ icon: Icon, title, subtitle }) {
   )
 }
 
+// Ops-console page header: icon tile + title + mono stat chips + actions
+export function PageHeader({ icon: Icon, title, subtitle, stats = [], actions }) {
+  return (
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        {Icon && (
+          <div className="w-10 h-10 rounded-lg bg-panel-accent/15 flex items-center justify-center shrink-0">
+            <Icon size={20} className="text-panel-accent" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-xl font-bold text-panel-text tracking-tight">{title}</h1>
+          {subtitle && <p className="text-xs text-panel-muted">{subtitle}</p>}
+        </div>
+        {stats.map(s => (
+          <div key={s.label} className="ml-2 pl-4 border-l border-panel-border">
+            <p className="text-xl font-bold font-mono text-panel-text leading-tight">{s.value}</p>
+            <p className="text-[11px] text-panel-muted">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  )
+}
+
 // Inline spinner for buttons and refresh indicators
 export function Spinner({ size = 16, className = '' }) {
   return <Loader2 size={size} className={`animate-spin ${className}`} aria-hidden />

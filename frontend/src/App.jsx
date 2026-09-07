@@ -22,6 +22,7 @@ const SshKeys = lazy(() => import('./pages/SshKeys.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 const Marketplace = lazy(() => import('./pages/Marketplace.jsx'))
 const Aurex = lazy(() => import('./pages/Aurex.jsx'))
+const Integrations = lazy(() => import('./pages/Integrations.jsx'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="ssh-keys" element={<SshKeys />} />
               <Route path="marketplace" element={<Marketplace />} />
               <Route path="aurex" element={<Aurex />} />
+              <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

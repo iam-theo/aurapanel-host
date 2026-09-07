@@ -31,8 +31,8 @@ export default function SshKeys() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-panel-card p-1 rounded-lg border border-panel-border">
-          <button className={`px-4 py-2 rounded-md text-sm ${tab === 'keys' ? 'bg-panel-accent text-white' : 'text-panel-muted'}`} onClick={() => setTab('keys')}><KeyRound size={15} className="inline mr-1.5 -mt-0.5" />SSH Keys ({keys.length})</button>
-          <button className={`px-4 py-2 rounded-md text-sm ${tab === 'users' ? 'bg-panel-accent text-white' : 'text-panel-muted'}`} onClick={() => setTab('users')}><UserIcon size={15} className="inline mr-1.5 -mt-0.5" />Users ({users.length})</button>
+          <button className={`px-4 py-2 rounded-md text-sm ${tab === 'keys' ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted'}`} onClick={() => setTab('keys')}><KeyRound size={15} className="inline mr-1.5 -mt-0.5" />SSH Keys ({keys.length})</button>
+          <button className={`px-4 py-2 rounded-md text-sm ${tab === 'users' ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted'}`} onClick={() => setTab('users')}><UserIcon size={15} className="inline mr-1.5 -mt-0.5" />Users ({users.length})</button>
         </div>
         <div className="flex gap-2">
           <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>

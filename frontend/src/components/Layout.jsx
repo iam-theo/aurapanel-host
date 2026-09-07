@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Server, Boxes, Database, Globe, FolderOpen,
   Cpu, Settings as SettingsIcon, Activity, Terminal, ChevronDown,
   Menu, X, ChevronRight, Archive, Clock, KeyRound, LogOut, Package, Bot,
-  Sun, Moon,
+  Sun, Moon, Blocks,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -15,14 +15,17 @@ import { useSWR } from '../lib/useSWR'
 const navGroups = [
   {
     title: 'Overview',
-    items: [{ to: '/', label: 'Overview', icon: LayoutDashboard, end: true }],
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+      { to: '/processes', label: 'Processes', icon: Cpu },
+    ],
   },
   {
-    title: 'Compute',
+    title: 'Workloads',
     items: [
       { to: '/applications', label: 'Applications', icon: Activity },
       { to: '/containers', label: 'Containers', icon: Boxes },
-      { to: '/processes', label: 'Processes', icon: Cpu },
+      { to: '/services', label: 'Services', icon: Server },
     ],
   },
   {
@@ -30,36 +33,34 @@ const navGroups = [
     items: [
       { to: '/databases', label: 'Databases', icon: Database },
       { to: '/backups', label: 'Backups', icon: Archive },
-    ],
-  },
-  {
-    title: 'Web',
-    items: [
-      { to: '/domains', label: 'Domains', icon: Globe },
       { to: '/files', label: 'File Manager', icon: FolderOpen },
     ],
   },
   {
-    title: 'AI',
+    title: 'Network',
     items: [
-      { to: '/aurex', label: 'Aurex Agent', icon: Bot },
+      { to: '/domains', label: 'Domains', icon: Globe },
     ],
   },
   {
-    title: 'Platform',
+    title: 'Automation',
     items: [
-      { to: '/marketplace', label: 'Marketplace', icon: Package },
-      { to: '/services', label: 'Services', icon: Server },
       { to: '/cron', label: 'Cron Jobs', icon: Clock },
+      { to: '/aurex', label: 'Aurex Agent', icon: Bot },
+      { to: '/marketplace', label: 'Marketplace', icon: Package },
+      { to: '/integrations', label: 'Integrations', icon: Blocks },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
       { to: '/ssh-keys', label: 'SSH Keys', icon: KeyRound },
+      { to: '/settings', label: 'Settings', icon: SettingsIcon },
+      { to: '/', label: 'Terminal', icon: Terminal },
     ],
   },
 ]
-const systemNav = [
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
-  { to: '/', label: 'Terminal', icon: Terminal },
-]
-const allGroups = [...navGroups, { title: 'System', items: systemNav }]
+const allGroups = navGroups
 const NAV_OPEN_KEY = 'panel-nav-open'
 
 // Warm route chunks so sidebar navigation rarely suspends (which would
@@ -78,6 +79,7 @@ const routePrefetchers = {
   '/cron': () => import('../pages/Cron.jsx'),
   '/ssh-keys': () => import('../pages/SshKeys.jsx'),
   '/marketplace': () => import('../pages/Marketplace.jsx'),
+  '/integrations': () => import('../pages/Integrations.jsx'),
   '/aurex': () => import('../pages/Aurex.jsx'),
   '/settings': () => import('../pages/Settings.jsx'),
 }
@@ -155,7 +157,7 @@ export default function Layout() {
             </button>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-panel-card border border-panel-border">
-                <div className="w-7 h-7 rounded-full bg-panel-accent flex items-center justify-center text-xs font-bold text-white">
+                <div className="w-7 h-7 rounded-full bg-panel-accent flex items-center justify-center text-xs font-bold text-panel-onaccent">
                   {(user?.username || 'DA').slice(0, 2).toUpperCase()}
                 </div>
                 <span className="text-sm hidden sm:block">{user?.username || 'root'}</span>

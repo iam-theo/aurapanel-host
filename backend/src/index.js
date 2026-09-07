@@ -22,6 +22,7 @@ import packagesRoutes from './routes/packages.js';
 import aurexRoutes from './routes/aurex.js';
 import logsRoutes from './routes/logs.js';
 import updatesRoutes from './routes/updates.js';
+import integrationsRoutes from './routes/integrations.js';
 
 import { logger } from './lib/logger.js';
 import { metricsMiddleware, register } from './lib/metrics.js';
@@ -106,8 +107,8 @@ app.use('/api', requireAuth);
 app.use('/api/v1', requireAuth);
 
 // Write-rate-limit for mutating APIs
-const writePaths = ['/api/nginx', '/api/databases', '/api/backups', '/api/cron', '/api/users', '/api/files', '/api/services', '/api/pm2', '/api/docker',
-  '/api/v1/nginx', '/api/v1/databases', '/api/v1/backups', '/api/v1/cron', '/api/v1/users', '/api/v1/files', '/api/v1/services', '/api/v1/pm2', '/api/v1/docker'];
+const writePaths = ['/api/nginx', '/api/databases', '/api/backups', '/api/cron', '/api/users', '/api/files', '/api/services', '/api/pm2', '/api/docker', '/api/integrations', '/api/system',
+  '/api/v1/nginx', '/api/v1/databases', '/api/v1/backups', '/api/v1/cron', '/api/v1/users', '/api/v1/files', '/api/v1/services', '/api/v1/pm2', '/api/v1/docker', '/api/v1/integrations', '/api/v1/system'];
 app.use(writePaths, writeLimiter);
 
 // --- Versioned API mount (v1) + legacy /api mount ---
@@ -127,6 +128,7 @@ function mountApi(prefix) {
   app.use(`${prefix}/aurex`, aurexRoutes);
   app.use(`${prefix}/logs`, logsRoutes);
   app.use(`${prefix}/updates`, updatesRoutes);
+  app.use(`${prefix}/integrations`, integrationsRoutes);
 }
 mountApi('/api');
 mountApi('/api/v1');

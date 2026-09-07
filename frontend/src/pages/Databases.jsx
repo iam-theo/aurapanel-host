@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Database, RefreshCw, Boxes, Server, Cpu, Plus, Trash2, User as UserIcon, KeyRound, Copy } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
-import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner } from '../components/ui.jsx'
+import Modal, { Field, Button, EmptyState, ConfirmModal, Spinner, PageHeader } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -48,6 +48,21 @@ export default function Databases() {
 
   return (
     <div className="p-6 space-y-6">
+      <PageHeader
+        icon={Database}
+        title="Databases"
+        subtitle="postgres · redis · memcached · rabbitmq · ollama"
+        stats={[
+          { value: (data.postgres || []).length, label: 'pg clusters' },
+          { value: data.redis?.running ? 'up' : 'down', label: 'redis' },
+        ]}
+        actions={tab === 'postgres' && data.postgres?.length > 0 && (
+          <>
+            <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
+            <button className="btn-accent" onClick={() => setCreateDb(data.postgres[0])}><Plus size={16} /> New Database</button>
+          </>
+        )}
+      />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-3 bg-panel-card p-2 rounded-lg border border-panel-border overflow-x-auto">
           {CATEGORIES.map(cat => (
@@ -56,7 +71,7 @@ export default function Databases() {
               <div className="flex gap-1">
                 {cat.tabs.map(t => (
                   <button key={t.id}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap ${tab === t.id ? 'bg-panel-accent text-white' : 'text-panel-muted hover:text-panel-text hover:bg-panel-bg'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap ${tab === t.id ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted hover:text-panel-text hover:bg-panel-bg'}`}
                     onClick={() => setTab(t.id)}>
                     <t.icon size={14} /> {t.label}
                   </button>
@@ -66,12 +81,6 @@ export default function Databases() {
             </div>
           ))}
         </div>
-        {tab === 'postgres' && data.postgres?.length > 0 && (
-          <div className="flex gap-2">
-            <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-            <button className="btn-accent" onClick={() => setCreateDb(data.postgres[0])}><Plus size={16} /> New Database</button>
-          </div>
-        )}
       </div>
 
       {tab === 'postgres' && <PostgresTab servers={data.postgres} onNewDb={setCreateDb} onNewUser={setCreateUser} reload={load} notify={notify} />}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Play, Square, RotateCcw, Trash2, RefreshCw, Box, Image as ImageIcon, Network, Database as DbIcon, Plus, FileCode2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
+import { PageHeader } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 import Modal, { Field, Button, EmptyState, ConfirmModal } from '../components/ui.jsx'
@@ -69,11 +70,20 @@ export default function Containers() {
 
   return (
     <div className="p-6 space-y-6">
+      <PageHeader
+        icon={Box}
+        title="Containers"
+        subtitle="docker engine · images · networks · volumes"
+        stats={[
+          { value: <>{containers.filter(c => (c.state || '').toLowerCase() === 'running').length}<span className="text-panel-muted text-sm">/{containers.length}</span></>, label: 'running' },
+          { value: images.length, label: 'images' },
+        ]}
+      />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-1 bg-panel-card p-1 rounded-lg border border-panel-border">
           {TABS.map(t => (
             <button key={t.id}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${tab === t.id ? 'bg-panel-accent text-white' : 'text-panel-muted hover:text-panel-text'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${tab === t.id ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted hover:text-panel-text'}`}
               onClick={() => setTab(t.id)}>
               <t.icon size={15} /> {t.label}
               <span className="text-xs opacity-70">{t.id === 'containers' ? containers.length : t.id === 'images' ? images.length : t.id === 'networks' ? networks.length : volumes.length}</span>

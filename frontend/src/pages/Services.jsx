@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Play, Square, RotateCcw, Power, RefreshCw, Server, Check } from 'lucide-react'
 import { api } from '../lib/api'
 import { useNotify } from '../context/NotifyContext'
+import { PageHeader } from '../components/ui.jsx'
 import Pagination, { paginate } from '../components/Pagination.jsx'
 import BulkBar, { useBulk } from '../components/BulkBar.jsx'
 
@@ -58,23 +59,20 @@ export default function Services() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-6">
-          <div>
-            <p className="text-2xl font-bold">{activeCount}<span className="text-panel-muted text-lg">/{services.length}</span></p>
-            <p className="text-xs text-panel-muted">Services active</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{enabledCount}</p>
-            <p className="text-xs text-panel-muted">Auto-start enabled</p>
-          </div>
-        </div>
-        <button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
-      </div>
+      <PageHeader
+        icon={Server}
+        title="Services"
+        subtitle="systemd units across the host"
+        stats={[
+          { value: <>{activeCount}<span className="text-panel-muted text-sm">/{services.length}</span></>, label: 'active' },
+          { value: enabledCount, label: 'auto-start' },
+        ]}
+        actions={<button className="btn-ghost" onClick={load}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>}
+      />
 
       <div className="flex gap-1 bg-panel-card p-1 rounded-lg border border-panel-border overflow-x-auto w-fit">
         {groups.map(g => (
-          <button key={g} onClick={() => { setActiveTab(g); setPage(1) }} className={`px-4 py-2 rounded-md text-sm capitalize whitespace-nowrap ${activeTab === g ? 'bg-panel-accent text-white' : 'text-panel-muted hover:text-panel-text'}`}>{g}{g !== 'all' && <span className="ml-1.5 text-xs opacity-60">({services.filter(s => s.group === g).length})</span>}</button>
+          <button key={g} onClick={() => { setActiveTab(g); setPage(1) }} className={`px-4 py-2 rounded-md text-sm capitalize whitespace-nowrap ${activeTab === g ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted hover:text-panel-text'}`}>{g}{g !== 'all' && <span className="ml-1.5 text-xs opacity-60">({services.filter(s => s.group === g).length})</span>}</button>
         ))}
       </div>
 

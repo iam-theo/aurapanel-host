@@ -3,24 +3,25 @@
 @tailwind utilities;
 
 @layer base {
-  /* Dark theme (default) — deep slate surfaces, soft off-white text */
+  /* Dark ops-console (default) — deep sea surfaces, cyan signal accents */
   :root {
     color-scheme: dark;
-    --panel-bg: 19 21 25;
-    --panel-sidebar: 26 29 36;
-    --panel-card: 30 33 40;
-    --panel-cardHover: 37 40 48;
-    --panel-border: 42 45 53;
-    --panel-text: 228 231 236;
-    --panel-muted: 139 143 154;
-    --panel-accent: 108 92 231;
-    --panel-accentLight: 162 155 254;
-    --panel-green: 0 184 148;
+    --panel-bg: 13 20 29;
+    --panel-sidebar: 21 28 37;
+    --panel-card: 25 32 41;
+    --panel-cardHover: 35 42 52;
+    --panel-border: 46 53 63;
+    --panel-text: 220 227 240;
+    --panel-muted: 188 201 205;
+    --panel-accent: 76 215 246;
+    --panel-accentLight: 172 237 255;
+    --panel-onaccent: 0 54 64;
+    --panel-green: 78 222 163;
     --panel-yellow: 253 203 110;
-    --panel-red: 225 112 85;
-    --panel-blue: 116 185 255;
-    --panel-purple: 162 155 254;
-    --panel-orange: 225 112 85;
+    --panel-red: 255 180 171;
+    --panel-blue: 192 193 255;
+    --panel-purple: 179 157 255;
+    --panel-orange: 255 171 145;
   }
   /* Light theme — warm paper surfaces, ink text. Semantic hues are
      deepened so text stays ≥ WCAG AA (4.5:1) on light surfaces. */
@@ -33,8 +34,9 @@
     --panel-border: 221 225 231;
     --panel-text: 22 29 42;
     --panel-muted: 90 100 116;
-    --panel-accent: 79 70 229;
-    --panel-accentLight: 67 56 202;
+    --panel-accent: 14 116 144;
+    --panel-accentLight: 21 94 117;
+    --panel-onaccent: 255 255 255;
     --panel-green: 4 120 87;
     --panel-yellow: 146 64 14;
     --panel-red: 185 28 28;
@@ -77,7 +79,7 @@
     @apply px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-panel-accent/50 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-accent {
-    @apply btn bg-panel-accent text-white hover:bg-panel-accent/90;
+    @apply btn bg-panel-accent text-panel-onaccent hover:bg-panel-accent/90;
   }
   .btn-ghost {
     @apply btn bg-transparent border border-panel-border text-panel-text hover:bg-panel-cardHover;

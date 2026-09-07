@@ -3,7 +3,7 @@ import { Trash2, Play, Square, RotateCcw, Download, X } from 'lucide-react'
 export default function BulkBar({ count, onClear, actions }) {
   if (!count) return null
   return (
-    <div className="sticky top-0 z-10 bg-panel-accent text-white px-4 py-2.5 rounded-lg flex items-center gap-3 mb-3 flex-wrap">
+    <div className="sticky top-0 z-10 bg-panel-accent text-panel-onaccent px-4 py-2.5 rounded-lg flex items-center gap-3 mb-3 flex-wrap">
       <span className="font-medium text-sm">{count} selected</span>
       <div className="h-5 w-px bg-white/20" />
       <div className="flex items-center gap-1.5 flex-wrap">

@@ -94,8 +94,8 @@ export default function Marketplace() {
       </div>
 
       <div className="flex gap-2 bg-panel-card p-1 rounded-lg border border-panel-border w-fit">
-        <button className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'marketplace' ? 'bg-panel-accent text-white' : 'text-panel-muted'}`} onClick={() => setActiveTab('marketplace')}>Marketplace <span className="ml-1 text-xs opacity-70">{data.total}</span></button>
-        <button className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'installed' ? 'bg-panel-accent text-white' : 'text-panel-muted'}`} onClick={() => setActiveTab('installed')}>Installed <span className="ml-1 text-xs opacity-70">{installed.total}</span></button>
+        <button className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'marketplace' ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted'}`} onClick={() => setActiveTab('marketplace')}>Marketplace <span className="ml-1 text-xs opacity-70">{data.total}</span></button>
+        <button className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'installed' ? 'bg-panel-accent text-panel-onaccent' : 'text-panel-muted'}`} onClick={() => setActiveTab('installed')}>Installed <span className="ml-1 text-xs opacity-70">{installed.total}</span></button>
       </div>
 
       {activeTab === 'marketplace' && (

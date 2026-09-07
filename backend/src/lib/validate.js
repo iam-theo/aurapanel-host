@@ -100,6 +100,15 @@ export const schemas = {
     path: z.string().min(1).max(1024),
     dest: z.string().min(1).max(1024).optional(),
   }),
+  integrationCreate: z.object({
+    provider: z.enum(['github', 'docker-registry', 'slack', 'webhook']),
+    name: z.string().min(1).max(80),
+    baseUrl: z.string().max(512).optional(),
+    username: z.string().max(255).optional(),
+    password: z.string().max(1024).optional(),
+    token: z.string().max(2048).optional(),
+    webhookUrl: z.string().max(1024).optional(),
+  }),
 
   // services
   serviceAction: z.enum(['start', 'stop', 'restart', 'enable', 'disable', 'reload']),
