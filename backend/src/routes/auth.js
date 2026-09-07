@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { schemas, validateBody } from '../lib/validate.js';
-import { verifyPanelUser, signToken, listPanelUsers, createPanelUser, deletePanelUser, updatePanelUserRole, requireAuth, requireRole } from '../lib/auth.js';
+import { verifyPanelUser, signToken, listPanelUsers, createPanelUser, deletePanelUser, updatePanelUserRole, requireAuth, requireRole, useSecureCookies } from '../lib/auth.js';
 import { audit } from '../lib/audit.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../lib/logger.js';
@@ -20,7 +20,7 @@ router.post('/login', authLimiter, validateBody(schemas.login), async (req, res)
   res.cookie('panel_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: useSecureCookies(req),
     maxAge: 12 * 60 * 60 * 1000,
     path: '/',
   });

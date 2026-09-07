@@ -134,6 +134,17 @@ export function requireRole(...roles) {
 
 // CSRF: double-submit cookie
 import { randomBytes } from 'crypto';
+
+// Secure cookies are only sent back by browsers over HTTPS. systemd sets
+// NODE_ENV=production even on plain-HTTP installs, so gating on NODE_ENV
+// bricks CSRF + cookie auth (Secure cookies are never sent over http).
+// Derive from the actual client-facing scheme instead (nginx forwards it);
+// COOKIE_SECURE=true/false overrides when explicitly set.
+export function useSecureCookies(req) {
+  if (process.env.COOKIE_SECURE === 'true') return true;
+  if (process.env.COOKIE_SECURE === 'false') return false;
+  return req?.secure === true || req?.headers?.['x-forwarded-proto'] === 'https';
+}
 export function csrfMiddleware(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   if (process.env.AUTH_DISABLED === 'true') return next();
@@ -152,7 +163,7 @@ export function issueCsrfToken(req, res, next) {
   let token = req.cookies?.csrf_token;
   if (!token) {
     token = randomBytes(32).toString('hex');
-    res.cookie('csrf_token', token, { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+    res.cookie('csrf_token', token, { httpOnly: false, sameSite: 'lax', secure: useSecureCookies(req), path: '/' });
   }
   // Also return in JSON for SPA to read
   if (req.path === '/api/auth/csrf' || req.path === '/auth/csrf') {

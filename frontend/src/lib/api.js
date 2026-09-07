@@ -5,7 +5,7 @@ function getCookie(name) {
   return m ? decodeURIComponent(m[2]) : null
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, _retriedCsrf = false) {
   const headers = { ...(options.headers || {}) }
   // CSRF double-submit
   const csrf = getCookie('csrf_token')
@@ -23,6 +23,12 @@ async function request(path, options = {}) {
   let data
   try { data = text ? JSON.parse(text) : {} } catch { data = { error: text.slice(0, 500) } }
   if (!res.ok) {
+    // Cookie may be missing/stale (e.g. cleared mid-session): prime it once and retry
+    if (res.status === 403 && (data.error || '').includes('CSRF') && !_retriedCsrf
+        && options.method && !['GET', 'HEAD'].includes(options.method)) {
+      try { await request('/auth/csrf') } catch {}
+      return request(path, options, true)
+    }
     if (res.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/csrf')) {
       // Clear stale token and bounce to login
       localStorage.removeItem('panel_token')
