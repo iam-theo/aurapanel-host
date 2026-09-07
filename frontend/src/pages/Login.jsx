@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Shield, Loader2 } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
+import { Shield, Loader2, Sun, Moon } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
+  const { theme, toggle } = useTheme()
   const nav = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +28,14 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-panel-bg p-4">
+    <div className="min-h-screen flex items-center justify-center bg-panel-bg p-4 relative">
+      <button
+        onClick={toggle}
+        title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        className="absolute top-4 right-4 p-2 rounded-md hover:bg-panel-card border border-transparent hover:border-panel-border text-panel-muted hover:text-panel-text"
+      >
+        {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+      </button>
       <form onSubmit={submit} className="panel-card w-full max-w-sm space-y-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-lg bg-panel-blue/15 flex items-center justify-center">

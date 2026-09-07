@@ -328,7 +328,7 @@ export default function Files() {
         <div className="flex items-center gap-1 border-l border-panel-border pl-2 ml-1">
           <button className="btn-ghost !px-2 !py-1.5" title="Refresh" onClick={() => load(path)}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /></button>
           <button className="btn-ghost !px-2 !py-1.5" title="Toggle hidden files" onClick={() => { const h = !showHidden; setShowHidden(h); load(path, h) }}>
-            {showHidden ? <Eye size={16} className="text-panel-accent" /> : <EyeOff size={16} />}
+            {showHidden ? <Eye size={16} className="text-panel-accentLight" /> : <EyeOff size={16} />}
           </button>
         </div>
       </div>
@@ -343,7 +343,7 @@ export default function Files() {
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onUpload} />
         {clipboard && (
           <>
-            <button className="btn !py-2 gap-1.5 text-panel-accent" onClick={() => pasteInto(path)}>
+            <button className="btn !py-2 gap-1.5 text-panel-accentLight" onClick={() => pasteInto(path)}>
               <Clipboard size={15} /> Paste {clipboard.action === 'copy' ? 'copy' : 'move'} here
             </button>
             <button className="btn-ghost !py-2" onClick={() => setClipboard(null)}><X size={15} /></button>
@@ -416,7 +416,7 @@ export default function Files() {
                       : itype === 'code' ? <FileEdit size={16} className={`shrink-0 ${EXT_COLORS[item.name.split('.').pop()?.toLowerCase()] || 'text-panel-muted'}`} />
                       : <File size={16} className="text-panel-muted shrink-0" />}
                     <span className={`truncate font-mono ${item.name.startsWith('.') ? 'text-panel-muted/70' : ''}`}>{item.name}</span>
-                    {item.isSymlink && <span className="text-[10px] px-1.5 rounded bg-panel-accent/15 text-panel-accent">link</span>}
+                    {item.isSymlink && <span className="text-[10px] px-1.5 rounded bg-panel-accent/15 text-panel-accentLight">link</span>}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-panel-muted">{item.isDirectory ? '—' : formatBytes(item.size)}</td>
                   <td className="px-4 py-2.5 text-xs text-panel-muted">
@@ -439,7 +439,7 @@ export default function Files() {
                       {isZip(item.name) && (
                         <button className="btn !px-2 !py-1" title="Extract here" onClick={() => unzipItem(item)}><PackageOpen size={13} /></button>
                       )}
-                      <button className="btn !px-2 !py-1" title="Rename" onClick={() => setModal({ type: 'rename', item, value: item.name })}><FileEdit size={13} className="text-panel-accent" /></button>
+                      <button className="btn !px-2 !py-1" title="Rename" onClick={() => setModal({ type: 'rename', item, value: item.name })}><FileEdit size={13} className="text-panel-accentLight" /></button>
                       <button className="btn !px-2 !py-1" title="Zip" onClick={() => { setClipboard(null); setModal({ type: 'zip', targets: [item.path] }) }}><Archive size={13} /></button>
                       <button className="btn !px-2 !py-1" title="Copy" onClick={() => mkTarget('copy', item)}><Copy size={13} /></button>
                       <button className="btn !px-2 !py-1" title="Cut" onClick={() => mkTarget('move', item)}><Scissors size={13} /></button>
@@ -495,7 +495,7 @@ export default function Files() {
           <div className="relative w-full max-w-4xl bg-panel-card border border-panel-border rounded-lg overflow-hidden flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
               <div className="flex items-center gap-2 font-mono text-sm min-w-0">
-                <FileEdit size={15} className="text-panel-accent shrink-0" />
+                <FileEdit size={15} className="text-panel-accentLight shrink-0" />
                 <span className="font-medium truncate">{editing.name}</span>
                 <span className="text-xs text-panel-muted truncate">{editing.path}</span>
               </div>

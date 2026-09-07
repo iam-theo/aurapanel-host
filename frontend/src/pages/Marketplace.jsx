@@ -126,7 +126,7 @@ export default function Marketplace() {
                 <div key={pkg.id} className="panel-card flex flex-col">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isInst ? 'bg-panel-green/15 text-panel-green' : 'bg-panel-accent/15 text-panel-accent'}`}><Icon size={18} /></div>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isInst ? 'bg-panel-green/15 text-panel-green' : 'bg-panel-accent/15 text-panel-accentLight'}`}><Icon size={18} /></div>
                       <div>
                         <p className="font-semibold text-panel-text text-sm">{pkg.name}</p>
                         <p className="text-xs text-panel-muted capitalize">{pkg.category} • <span className="font-mono">{pkg.id}</span></p>

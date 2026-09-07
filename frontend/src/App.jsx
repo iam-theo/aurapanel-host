@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { NotifyProvider } from './context/NotifyContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
 import { Skeleton } from './components/Skeleton.jsx'
@@ -36,6 +37,7 @@ function Fallback() {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <NotifyProvider>
     <AuthProvider>
       <BrowserRouter>
@@ -65,5 +67,6 @@ export default function App() {
       </BrowserRouter>
     </AuthProvider>
     </NotifyProvider>
+    </ThemeProvider>
   )
 }

@@ -6,6 +6,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { api } from '../lib/api'
 import { useSWR } from '../lib/useSWR'
+import { useTheme, panelVar } from '../context/ThemeContext'
 import { formatBytes, formatUptime } from '../lib/utils'
 
 export default function Dashboard() {
@@ -17,6 +18,16 @@ export default function Dashboard() {
 
   const [cpuHistory, setCpuHistory] = useState([])
   const [cpuErr, setCpuErr] = useState(null)
+  const { theme } = useTheme()
+  // Recomputed on theme toggle so SVG colors follow the active palette
+  const chart = {
+    accent: panelVar('--panel-accent') || '#6c5ce7',
+    grid: panelVar('--panel-border') || '#2a2d35',
+    tick: panelVar('--panel-muted') || '#8b8f9a',
+    tipBg: panelVar('--panel-sidebar') || '#1a1d24',
+    tipBorder: panelVar('--panel-border') || '#2a2d35',
+    tipText: panelVar('--panel-text') || '#e4e7ec',
+  }
 
   useEffect(() => {
     let t
@@ -113,17 +124,17 @@ export default function Dashboard() {
             <AreaChart data={cpuHistory}>
               <defs>
                 <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.5} />
-                  <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0} />
+                  <stop offset="5%" stopColor={chart.accent} stopOpacity={0.5} />
+                  <stop offset="95%" stopColor={chart.accent} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" />
-              <XAxis dataKey="time" stroke="#8b8f9a" fontSize={11} tickLine={false} />
-              <YAxis stroke="#8b8f9a" fontSize={11} tickLine={false} domain={[0, 100]} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+              <XAxis dataKey="time" stroke={chart.tick} fontSize={11} tickLine={false} />
+              <YAxis stroke={chart.tick} fontSize={11} tickLine={false} domain={[0, 100]} />
               <Tooltip
-                contentStyle={{ background: '#1a1d24', border: '1px solid #2a2d35', borderRadius: 8, color: '#e4e7ec' }}
+                contentStyle={{ background: chart.tipBg, border: `1px solid ${chart.tipBorder}`, borderRadius: 8, color: chart.tipText }}
               />
-              <Area type="monotone" dataKey="usage" stroke="#6c5ce7" fill="url(#cpuGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="usage" stroke={chart.accent} fill="url(#cpuGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

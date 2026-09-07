@@ -4,9 +4,11 @@ import {
   LayoutDashboard, Server, Boxes, Database, Globe, FolderOpen,
   Cpu, Settings as SettingsIcon, Activity, Terminal, ChevronDown,
   Menu, X, ChevronRight, Archive, Clock, KeyRound, LogOut, Package, Bot,
+  Sun, Moon,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { AlertBanner } from '../context/NotifyContext'
 import { useSWR } from '../lib/useSWR'
 
@@ -53,16 +55,22 @@ const navGroups = [
     ],
   },
 ]
-const mainNav = navGroups.flatMap(g => g.items)
+const systemNav = [
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  { to: '/', label: 'Terminal', icon: Terminal },
+]
+const allGroups = [...navGroups, { title: 'System', items: systemNav }]
+const NAV_OPEN_KEY = 'panel-nav-open'
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, logout } = useAuth()
+  const { theme, toggle } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
   const { data: summary } = useSWR('/pm2/summary', () => api.get('/pm2/summary'), { refreshInterval: 30000, dedupingInterval: 10000 })
 
-  const pageTitle = mainNav.find(n => 
+  const pageTitle = allGroups.flatMap(g => g.items).find(n =>
     n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)
   )?.label || 'Panel'
 
@@ -100,13 +108,20 @@ export default function Layout() {
               <span className="w-2 h-2 rounded-full bg-panel-green animate-pulse" />
               All systems normal
             </span>
+            <button
+              onClick={toggle}
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              className="p-2 rounded-md hover:bg-panel-card border border-transparent hover:border-panel-border text-panel-muted hover:text-panel-text"
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-panel-card border border-panel-border">
                 <div className="w-7 h-7 rounded-full bg-panel-accent flex items-center justify-center text-xs font-bold text-white">
                   {(user?.username || 'DA').slice(0, 2).toUpperCase()}
                 </div>
                 <span className="text-sm hidden sm:block">{user?.username || 'root'}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-panel-accent/20 text-panel-accent hidden sm:block">{user?.role || 'admin'}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-panel-accent/20 text-panel-accentLight hidden sm:block">{user?.role || 'admin'}</span>
               </div>
               <button onClick={async () => { await logout(); navigate('/login') }} title="Sign out" className="p-2 rounded-md hover:bg-panel-card border border-transparent hover:border-panel-border text-panel-muted hover:text-panel-text">
                 <LogOut size={16} />
@@ -124,6 +139,36 @@ export default function Layout() {
 }
 
 function Sidebar({ summary, onClose }) {
+  const location = useLocation()
+  const groupNames = allGroups.map(g => g.title)
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(NAV_OPEN_KEY) || '{}')
+      return Object.fromEntries(groupNames.map(n => [n, saved[n] !== false]))
+    } catch {
+      return Object.fromEntries(groupNames.map(n => [n, true]))
+    }
+  })
+
+  const toggleGroup = (name) => {
+    setOpen(prev => {
+      const next = { ...prev, [name]: !prev[name] }
+      try { localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  // Always reveal the group holding the active route
+  useEffect(() => {
+    const active = allGroups.find(g => g.items.some(it =>
+      it.end ? location.pathname === it.to : location.pathname.startsWith(it.to)
+    ))
+    if (active && !open[active.title]) {
+      setOpen(prev => ({ ...prev, [active.title]: true }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 h-16 border-b border-panel-border">
@@ -161,33 +206,38 @@ function Sidebar({ summary, onClose }) {
       </div>
 
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-        {navGroups.map(group => (
-          <div key={group.title} className="mb-2">
-            <p className="px-3 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-panel-muted/60">{group.title}</p>
-            {group.items.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                onClick={onClose}
+        {allGroups.map(group => {
+          const isOpen = open[group.title] !== false
+          return (
+            <div key={group.title} className="mb-1">
+              <button
+                onClick={() => toggleGroup(group.title)}
+                aria-expanded={isOpen}
+                className="w-full flex items-center gap-1 px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-panel-muted/60 hover:text-panel-muted transition-colors"
               >
-                <item.icon size={18} />
-                <span className="flex-1">{item.label}</span>
-                <ChevronRight size={14} className="text-panel-muted opacity-0 group-hover:opacity-100" />
-              </NavLink>
-            ))}
-          </div>
-        ))}
-        <p className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-panel-muted/70">System</p>
-        <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
-          <SettingsIcon size={18} />
-          <span>Settings</span>
-        </NavLink>
-        <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
-          <Terminal size={18} />
-          <span>Terminal</span>
-        </NavLink>
+                <span className="flex-1 text-left">{group.title}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`} />
+              </button>
+              {isOpen && (
+                <div className="space-y-0.5">
+                  {group.items.map(item => (
+                    <NavLink
+                      key={item.to + item.label}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                      onClick={onClose}
+                    >
+                      <item.icon size={18} />
+                      <span className="flex-1">{item.label}</span>
+                      <ChevronRight size={14} className="text-panel-muted opacity-0 group-hover:opacity-100" />
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
       <div className="p-4 border-t border-panel-border">

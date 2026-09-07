@@ -7,22 +7,25 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Theme-aware palette: values resolve from CSS variables so a single
+        // `light` class on <html> switches the whole UI between dark/light.
+        // Variables hold "R G B" triplets; <alpha-value> keeps /opacity working.
         panel: {
-          bg: '#131519',
-          sidebar: '#1a1d24',
-          card: '#1e2128',
-          cardHover: '#252830',
-          border: '#2a2d35',
-          text: '#e4e7ec',
-          muted: '#8b8f9a',
-          accent: '#6c5ce7',
-          accentLight: '#a29bfe',
-          green: '#00b894',
-          yellow: '#fdcb6e',
-          red: '#e17055',
-          blue: '#74b9ff',
-          purple: '#a29bfe',
-          orange: '#e17055',
+          bg: 'rgb(var(--panel-bg) / <alpha-value>)',
+          sidebar: 'rgb(var(--panel-sidebar) / <alpha-value>)',
+          card: 'rgb(var(--panel-card) / <alpha-value>)',
+          cardHover: 'rgb(var(--panel-cardHover) / <alpha-value>)',
+          border: 'rgb(var(--panel-border) / <alpha-value>)',
+          text: 'rgb(var(--panel-text) / <alpha-value>)',
+          muted: 'rgb(var(--panel-muted) / <alpha-value>)',
+          accent: 'rgb(var(--panel-accent) / <alpha-value>)',
+          accentLight: 'rgb(var(--panel-accentLight) / <alpha-value>)',
+          green: 'rgb(var(--panel-green) / <alpha-value>)',
+          yellow: 'rgb(var(--panel-yellow) / <alpha-value>)',
+          red: 'rgb(var(--panel-red) / <alpha-value>)',
+          blue: 'rgb(var(--panel-blue) / <alpha-value>)',
+          purple: 'rgb(var(--panel-purple) / <alpha-value>)',
+          orange: 'rgb(var(--panel-orange) / <alpha-value>)',
         }
       }
     },
