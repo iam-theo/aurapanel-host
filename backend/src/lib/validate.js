@@ -84,6 +84,22 @@ export const schemas = {
     path: z.string().min(1).max(1024),
     content: z.string().max(5 * 1024 * 1024),
   }),
+  createFile: z.object({
+    path: z.string().min(1).max(1024),
+    name: z.string().min(1).max(255),
+  }),
+  copyItem: z.object({
+    source: z.string().min(1).max(1024),
+    dest: z.string().min(1).max(1024),
+  }),
+  zipItem: z.object({
+    path: z.string().min(1).max(1024),
+    name: z.string().min(1).max(255).optional(),
+  }),
+  unzipItem: z.object({
+    path: z.string().min(1).max(1024),
+    dest: z.string().min(1).max(1024).optional(),
+  }),
 
   // services
   serviceAction: z.enum(['start', 'stop', 'restart', 'enable', 'disable', 'reload']),

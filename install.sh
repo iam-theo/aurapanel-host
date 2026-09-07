@@ -228,6 +228,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
+        client_max_body_size 1g;
     }
 
     # SPA fallback

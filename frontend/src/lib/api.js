@@ -51,6 +51,10 @@ export const api = {
     body: JSON.stringify(body),
   }),
   del: (path) => request(path, { method: 'DELETE' }),
+  upload: (path, formData) => request(path, {
+    method: 'POST',
+    body: formData,
+  }),
   // Auth helpers
   login: async (username, password) => {
     const data = await request('/auth/login', {
