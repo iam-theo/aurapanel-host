@@ -288,7 +288,7 @@ function ComposeModal({ open, onClose, onCreated }) {
         <Field label="Project name"><input className="input-field" placeholder="myproject" value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))} /></Field>
         <Field label="docker-compose.yml"><textarea className="input-field resize-none font-mono text-xs" rows={18} value={compose} onChange={e => setCompose(e.target.value)} spellCheck={false} /></Field>
         {err && <p className="text-sm text-panel-red">{err}</p>}
-        <p className="text-xs text-panel-muted bg-panel-bg rounded-md p-3 border border-panel-border">Saved to <code className="font-mono">/home/digital-auracle/compose/{name || '&lt;name&gt;'}/docker-compose.yml</code> and run with <code className="font-mono">docker compose up -d</code>.</p>
+        <p className="text-xs text-panel-muted bg-panel-bg rounded-md p-3 border border-panel-border">Saved to <code className="font-mono">/root/compose/{name || '&lt;name&gt;'}/docker-compose.yml</code> and run with <code className="font-mono">docker compose up -d</code>.</p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={busy}>{busy ? 'Deploying...' : 'Deploy'}</Button>

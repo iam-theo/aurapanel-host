@@ -22,7 +22,7 @@ const EXT_COLORS = {
 }
 
 export default function Files() {
-  const [path, setPath] = useState('/home/digital-auracle')
+  const [path, setPath] = useState('/root')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedFile, setSelectedFile] = useState(null)

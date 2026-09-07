@@ -47,7 +47,7 @@ export default function SshKeys() {
         <div className="panel-card p-0 overflow-hidden">
           <div className="px-4 py-3 border-b border-panel-border flex items-center gap-2 text-sm text-panel-muted">
             <KeyRound size={15} className="text-panel-green" />
-            Authorized keys for digital-auracle (<code className="font-mono">~/.ssh/authorized_keys</code>)
+            Authorized keys for root (<code className="font-mono">~/.ssh/authorized_keys</code>)
           </div>
           <div className="divide-y divide-panel-border/50">
             {keys.map(k => (

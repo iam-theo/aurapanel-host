@@ -6,7 +6,7 @@ info(){ echo -e "${CYAN}[INFO]${NC} $*"; }
 if [[ $EUID -ne 0 ]]; then exec sudo -E bash "$0" "$@"; fi
 
 PANEL_DIR="${PANEL_DIR:-/opt/server-panel}"
-PANEL_USER="${PANEL_USER:-panel}"
+PANEL_USER="${PANEL_USER:-root}"
 REPO_URL="${REPO_URL:-https://github.com/anomalyco/opencode.git}"
 BRANCH="${BRANCH:-main}"
 SRC_TMP="/tmp/server-panel-update-$$"
@@ -25,8 +25,8 @@ rsync -a --exclude node_modules --exclude dist --exclude .git --exclude logs --e
 chown -R "$PANEL_USER":"$PANEL_USER" "$PANEL_DIR" 2>/dev/null || true
 
 info "Rebuilding..."
-sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/backend && npm ci --omit=dev 2>&1 | tail -3" || true
-sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/frontend && npm ci 2>&1 | tail -3 && npm run build 2>&1 | tail -5" || true
+bash -c "cd $PANEL_DIR/backend && npm ci --omit=dev 2>&1 | tail -3" || true
+bash -c "cd $PANEL_DIR/frontend && npm ci 2>&1 | tail -3 && npm run build 2>&1 | tail -5" || true
 
 info "Restarting panel-api..."
 systemctl restart panel-api 2>&1 | tail -3 || true

@@ -35,7 +35,7 @@ esac
 info "Detected OS: $OS $VER (pm=$PM)"
 
 PANEL_DIR="${PANEL_DIR:-/opt/server-panel}"
-PANEL_USER="${PANEL_USER:-panel}"
+PANEL_USER="${PANEL_USER:-root}"
 PANEL_PORT="${PANEL_PORT:-3500}"
 PANEL_WEB_PORT="${PANEL_WEB_PORT:-5180}"
 PANEL_ADMIN_USER="${PANEL_ADMIN_USER:-admin}"
@@ -83,14 +83,16 @@ else
 fi
 ok "System deps ready: node $(node -v 2>/dev/null || echo '?') npm $(npm -v 2>/dev/null || echo '?')"
 
-# --- 3. panel user ---
-if ! id "$PANEL_USER" >/dev/null 2>&1; then
-  info "Creating panel user $PANEL_USER..."
-  useradd -m -s /bin/bash "$PANEL_USER" || true
-  usermod -aG sudo "$PANEL_USER" 2>/dev/null || true
-  usermod -aG docker "$PANEL_USER" 2>/dev/null || true
-else
-  info "Panel user $PANEL_USER exists"
+# --- 3. panel user (root by default — full control like aaPanel) ---
+if [[ "$PANEL_USER" != "root" ]]; then
+  if ! id "$PANEL_USER" >/dev/null 2>&1; then
+    info "Creating panel user $PANEL_USER..."
+    useradd -m -s /bin/bash "$PANEL_USER" || true
+    usermod -aG sudo "$PANEL_USER" 2>/dev/null || true
+    usermod -aG docker "$PANEL_USER" 2>/dev/null || true
+  else
+    info "Panel user $PANEL_USER exists"
+  fi
 fi
 PANEL_HOME=$(getent passwd "$PANEL_USER" | cut -d: -f6); [[ -z "$PANEL_HOME" ]] && PANEL_HOME="/home/$PANEL_USER"
 
@@ -113,7 +115,7 @@ if command -v rsync >/dev/null 2>&1; then
 else
   cp -a "$SRC_DIR"/. "$PANEL_DIR"/ 2>&1 | tail -3
 fi
-chown -R "$PANEL_USER":"$PANEL_USER" "$PANEL_DIR" 2>&1 | tail -2 || true
+[[ "$PANEL_USER" != "root" ]] && chown -R "$PANEL_USER":"$PANEL_USER" "$PANEL_DIR" 2>&1 | tail -2 || true
 ok "Panel files → $PANEL_DIR"
 
 # --- 6. .env ---
@@ -142,14 +144,17 @@ BACKUP_MAX_COUNT=50
 AUTH_DISABLED=false
 ALLOWED_ORIGINS=http://localhost:$PANEL_WEB_PORT,http://127.0.0.1:$PANEL_WEB_PORT
 EOF
-  chown "$PANEL_USER":"$PANEL_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
+  chown "$PANEL_USER":"$PANEL_USER" "$ENV_FILE" 2>/dev/null; chmod 600 "$ENV_FILE"
   ok "Env created (admin: $PANEL_ADMIN_USER / ${PANEL_ADMIN_PASS:0:3}***)"
   if [[ $GEN_PASS -eq 1 ]]; then echo -e "${YELLOW}Generated admin password: $PANEL_ADMIN_PASS${NC} — save it!"; fi
 else
   info "$ENV_FILE exists — keeping (delete to regenerate)"
 fi
 
-# --- 7. passwordless sudo for panel user (aaPanel style) ---
+# --- 7. passwordless sudo for non-root panel user (aaPanel style) ---
+if [[ "$PANEL_USER" == "root" ]]; then
+  info "Running as root — passwordless sudo not needed"
+else
 SUDOERS_FILE="/etc/sudoers.d/panel-$PANEL_USER"
 if [[ ! -f "$SUDOERS_FILE" ]]; then
   info "Granting passwordless sudo for $PANEL_USER (nginx/systemctl/docker/pg)..."
@@ -161,13 +166,14 @@ EOF
   chmod 440 "$SUDOERS_FILE"; visudo -c 2>&1 | tail -2 || true
   ok "Sudoers → $SUDOERS_FILE"
 fi
+fi
 
 # --- 8. npm install + build ---
 info "Installing backend deps..."
-sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/backend && npm ci --omit=dev 2>&1 | tail -5" || sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/backend && npm install --omit=dev 2>&1 | tail -5"
+bash -c "cd $PANEL_DIR/backend && npm ci --omit=dev 2>&1 | tail -5" || bash -c "cd $PANEL_DIR/backend && npm install --omit=dev 2>&1 | tail -5"
 info "Installing frontend deps & building..."
-sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/frontend && npm ci 2>&1 | tail -5" || sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/frontend && npm install 2>&1 | tail -5"
-sudo -u "$PANEL_USER" bash -c "cd $PANEL_DIR/frontend && npm run build 2>&1 | tail -10"
+bash -c "cd $PANEL_DIR/frontend && npm ci 2>&1 | tail -5" || bash -c "cd $PANEL_DIR/frontend && npm install 2>&1 | tail -5"
+bash -c "cd $PANEL_DIR/frontend && npm run build 2>&1 | tail -10"
 ok "Frontend built to $PANEL_DIR/frontend/dist"
 
 # --- 9. systemd service ---
@@ -262,7 +268,7 @@ if systemctl is-active firewalld >/dev/null 2>&1; then
 fi
 
 # --- 12. dirs for panel user ---
-sudo -u "$PANEL_USER" mkdir -p "$PANEL_HOME/apps" "$PANEL_HOME/backups" "$PANEL_HOME/compose" 2>/dev/null || true
+bash -c "mkdir -p '$PANEL_HOME/apps' '$PANEL_HOME/backups' '$PANEL_HOME/compose'" 2>/dev/null || true
 
 # --- 13. done ---
 IP=$(curl -fsSL https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'); [[ -z "$IP" ]] && IP="<server-ip>"

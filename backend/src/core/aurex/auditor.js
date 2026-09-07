@@ -3,6 +3,7 @@ import { join } from 'path';
 import { logger } from '../../lib/logger.js';
 import { run } from '../../lib/exec.js';
 import { buildServerContext } from './engine.js';
+import { APPS_DIR, PANEL_HOME } from '../../lib/config.js';
 
 const AUDIT_INTERVAL_MS = parseInt(process.env.AUDIT_INTERVAL_MS || '300000', 10); // 5m
 const AUDIT_DATA_DIR = process.env.AUDIT_DATA_DIR || 'data';
@@ -126,7 +127,7 @@ async function collectSystemd() {
 }
 
 async function collectProjects() {
-  const roots = ['/home/digital-auracle/apps', '/var/www', '/opt/server-panel', '/home/digital-auracle/server-panel'];
+  const roots = [APPS_DIR, '/var/www', '/opt/server-panel', `${PANEL_HOME}/server-panel`];
   const projects = [];
   for (const r of roots) {
     if (!existsSync(r)) continue;

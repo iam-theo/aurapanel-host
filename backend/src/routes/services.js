@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { execSync } from 'child_process';
 import { requireRole } from '../lib/auth.js';
+import { PANEL_USER } from '../lib/config.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ const KEY_SERVICES = [
   { name: 'memcached', label: 'Memcached', group: 'database' },
   { name: 'rabbitmq-server', label: 'RabbitMQ', group: 'database' },
   { name: 'docker', label: 'Docker', group: 'containers' },
-  { name: 'pm2-digital-auracle', label: 'PM2', group: 'application' },
+  { name: `pm2-${PANEL_USER}`, label: 'PM2', group: 'application' },
   { name: 'ollama', label: 'Ollama AI', group: 'application' },
   { name: 'cloudflared', label: 'Cloudflare Tunnel', group: 'network' },
   { name: 'tailscaled', label: 'Tailscale VPN', group: 'network' },

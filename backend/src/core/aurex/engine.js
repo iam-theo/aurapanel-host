@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { run } from '../../lib/exec.js';
+import { BACKUP_DIR, PANEL_USER } from '../../lib/config.js';
 
 // Host mapping — mirrors aurex/packages/docker host mode
 const HOST_ROOT = process.env.AUREX_HOST_ROOT ?? '/';
@@ -49,7 +50,7 @@ export async function buildServerContext() {
   } catch (e) { ctx.docker = { error: e.message }; }
 
   try {
-    const svcs = ['nginx', 'docker', 'postgresql', 'redis-server', 'pm2-digital-auracle', 'ollama', 'ssh', 'cloudflared'];
+    const svcs = ['nginx', 'docker', 'postgresql', 'redis-server', `pm2-${PANEL_USER}`, 'ollama', 'ssh', 'cloudflared'];
     ctx.services = svcs.map(s => {
       try { const active = run(`systemctl is-active ${s} 2>&1`, {}).trim(); const enabled = run(`systemctl is-enabled ${s} 2>&1`, {}).trim(); return { name: s, active, enabled }; }
       catch { return { name: s, active: 'unknown' }; }
@@ -69,7 +70,7 @@ export async function buildServerContext() {
 
   try { ctx.cron = run('crontab -l 2>&1 | head -c 2000', {}).trim().slice(0, 2000); } catch {}
 
-  try { ctx.backups = readdirSync('/home/digital-auracle/backups').length + ' backup(s)'; } catch { ctx.backups = 'n/a'; }
+  try { ctx.backups = readdirSync(BACKUP_DIR).length + ' backup(s)'; } catch { ctx.backups = 'n/a'; }
 
   return ctx;
 }

@@ -68,7 +68,7 @@ export default function Cron() {
 
       {jobs.length > 0 && (
         <div className="panel-card space-y-2">
-          <p className="text-xs text-panel-muted mb-3">Crontab for <code className="font-mono">digital-auracle</code> • {jobs.length} jobs</p>
+          <p className="text-xs text-panel-muted mb-3">Crontab for <code className="font-mono">root</code> • {jobs.length} jobs</p>
           <label className="flex items-center gap-2 text-xs text-panel-muted mb-2"><input type="checkbox" checked={paged.length>0 && paged.every(j => bulk.has(j.id))} onChange={e => bulk.toggleAll(paged.map(j => j.id), e.target.checked)} /> Select page</label>
           {paged.map(job => (
             <div key={job.id} className="flex items-center justify-between gap-4 bg-panel-bg rounded-md p-3 border border-panel-border group">
@@ -120,7 +120,7 @@ function CreateJobModal({ open, onClose, onCreated }) {
             {PRESETS.map(p => <option key={p.value} value={p.value}>{p.label} — {p.value}</option>)}
           </select>
         </Field>
-        <Field label="Command" hint="Runs as user digital-auracle via bash"><input className="input-field" placeholder="/usr/bin/php /var/www/site/backup.php" value={command} onChange={e => setCommand(e.target.value)} /></Field>
+        <Field label="Command" hint="Runs as user root via bash"><input className="input-field" placeholder="/usr/bin/php /var/www/site/backup.php" value={command} onChange={e => setCommand(e.target.value)} /></Field>
         <Field label="Label (optional)"><input className="input-field" placeholder="Site backup" value={label} onChange={e => setLabel(e.target.value)} /></Field>
         {err && <p className="text-sm text-panel-red">{err}</p>}
         <p className="text-xs text-panel-muted bg-panel-bg rounded-md p-3 border border-panel-border">Schedule: <code className="font-mono">{preset}</code></p>

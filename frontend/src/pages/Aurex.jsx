@@ -3,7 +3,7 @@ import { Bot, RefreshCw, Clock, Loader2, ExternalLink, Shield, Activity, Server,
 import { api } from '../lib/api'
 
 export default function Aurex() {
-  const [hostPath] = useState('/home/digital-auracle/apps')
+  const [hostPath] = useState('/root/apps')
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
   const [projectDetail, setProjectDetail] = useState(null)
@@ -385,7 +385,7 @@ export default function Aurex() {
                 {runStatus && <span className={`hidden md:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${runStatus==='running'?'bg-amber-500/10 border-amber-500/20 text-amber-300': runStatus==='completed'?'bg-emerald-500/10 border-emerald-500/20 text-emerald-300': runStatus==='failed'?'bg-red-500/10 border-red-500/20 text-red-300':'bg-white/5 border-white/10 text-white/40'}`}>{runStatus==='running'?<Loader2 size={10} className="animate-spin" />: runStatus==='completed'?<CheckCircle2 size={10}/>: runStatus==='failed'?<XCircle size={10}/>:null}{runStatus}</span>}
               </div>
               <div className="hidden md:flex items-center gap-1.5 text-[11px] text-white/35 mt-0.5">
-                <Globe size={11} />{serverCtx?.system?.hostname || 'digital-auracle'} <span className="w-1 h-1 rounded-full bg-white/15" /> {serverCtx?.system?.uptime || ''} <span className="w-1 h-1 rounded-full bg-white/15" /> {capabilities?.tools || 38} tools
+                <Globe size={11} />{serverCtx?.system?.hostname || 'root'} <span className="w-1 h-1 rounded-full bg-white/15" /> {serverCtx?.system?.uptime || ''} <span className="w-1 h-1 rounded-full bg-white/15" /> {capabilities?.tools || 38} tools
               </div>
             </div>
           </div>

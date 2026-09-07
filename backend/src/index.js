@@ -32,6 +32,12 @@ import { startAlertLoop } from './lib/alerts.js';
 import { startAuditLoop } from './core/aurex/auditor.js';
 
 const app = express();
+
+// Requests arrive via nginx on loopback; trust its X-Forwarded-For so req.ip
+// (and therefore rate-limits) reflect the real client instead of 127.0.0.1.
+// Without this, every user shares one global rate-limit bucket.
+app.set('trust proxy', 'loopback');
+
 const PORT = process.env.PORT || 3500;
 const API_VERSION = 'v1';
 

@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { run, isSafeName } from '../lib/exec.js';
 import { schemas, validateBody } from '../lib/validate.js';
 import { requireRole } from '../lib/auth.js';
+import { CRON_USER } from '../lib/config.js';
 
 const router = Router();
-const CRON_USER = 'digital-auracle';
 const TMP_CRON = '/tmp/serverpanel-cron.txt';
 
 function getCrontab() {

@@ -73,7 +73,7 @@ export default function Settings() {
               <Toggle label="Server down alerts" defaultChecked onSave={notify} />
               <Toggle label="Resource usage warnings" defaultChecked onSave={notify} />
               <Toggle label="Weekly summary report" onSave={notify} />
-              <Field label="Alert email" value="admin@digital-auracle.com" defaultValue="admin@digital-auracle.com" onSave={notify} />
+              <Field label="Alert email" value="root@localhost" defaultValue="root@localhost" onSave={notify} />
             </SettingCard>
             {saved && <p className="text-sm text-panel-green">Notification settings saved successfully.</p>}
           </div>
@@ -116,15 +116,15 @@ export default function Settings() {
           <div className="space-y-6 max-w-2xl">
             <SettingCard title="Profile" description="Your account information.">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-panel-accent flex items-center justify-center text-2xl font-bold text-white">DA</div>
+                <div className="w-16 h-16 rounded-full bg-panel-accent flex items-center justify-center text-2xl font-bold text-white">R</div>
                 <div>
-                  <p className="font-semibold">digital-auracle</p>
+                  <p className="font-semibold">root</p>
                   <p className="text-xs text-panel-muted">Administrator</p>
                 </div>
               </div>
-              <Field label="Full name" value="Digital Auracle Admin" defaultValue="Digital Auracle Admin" onSave={notify} />
-              <Field label="Email" value="admin@digital-auracle.com" defaultValue="admin@digital-auracle.com" onSave={notify} />
-              <Field label="Company" value="Digital Auracle" defaultValue="Digital Auracle" onSave={notify} />
+              <Field label="Full name" value="Root Administrator" defaultValue="Root Administrator" onSave={notify} />
+              <Field label="Email" value="root@localhost" defaultValue="root@localhost" onSave={notify} />
+              <Field label="Company" value="ServerPanel" defaultValue="ServerPanel" onSave={notify} />
             </SettingCard>
             {saved && <p className="text-sm text-panel-green">Profile updated successfully.</p>}
           </div>

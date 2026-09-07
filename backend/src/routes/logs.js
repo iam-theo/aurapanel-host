@@ -4,6 +4,7 @@ import { join, resolve } from 'path';
 import { run } from '../lib/exec.js';
 import { runAsync } from '../lib/execAsync.js';
 import { requireRole } from '../lib/auth.js';
+import { PANEL_HOME } from '../lib/config.js';
 
 const router = Router();
 
@@ -89,7 +90,7 @@ router.get('/file', (req, res) => {
   const resolved = resolve('/', raw);
   // allowlist-ish: only under /var/log, /home, /tmp or pm2 log paths
   const allowedPrefixes = ['/var/log/', '/home/', '/tmp/', '/root/.pm2/logs/'];
-  const isAllowed = allowedPrefixes.some(p => resolved.startsWith(p)) || resolved.startsWith('/home/digital-auracle/.pm2/logs');
+  const isAllowed = allowedPrefixes.some(p => resolved.startsWith(p)) || resolved.startsWith(`${PANEL_HOME}/.pm2/logs`);
   if (!isAllowed && !existsSync(resolved)) return res.status(403).json({ error: 'Path not allowed', allowedPrefixes });
   const result = tailFile(resolved, lines);
   if (!result.exists) return res.status(404).json({ error: `File not found: ${resolved}` });
@@ -191,7 +192,7 @@ router.post('/clear', requireRole('admin'), (req, res) => {
   const raw = String(req.body?.path || '');
   if (!raw) return res.status(400).json({ error: 'path required in body' });
   const resolved = resolve('/', raw);
-  const allowed = ['/var/log/nginx/', '/var/log/', '/home/digital-auracle/.pm2/logs/'];
+  const allowed = ['/var/log/nginx/', '/var/log/', `${PANEL_HOME}/.pm2/logs/`];
   const ok = allowed.some(p => resolved.startsWith(p));
   if (!ok) return res.status(403).json({ error: 'Not allowed to clear this path' });
   try {

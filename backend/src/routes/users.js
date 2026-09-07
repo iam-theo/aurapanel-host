@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import { run, isSafeName } from '../lib/exec.js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
-import { PROTECTED_USERS } from '../lib/config.js';
+import { PROTECTED_USERS, PANEL_USER, PANEL_HOME } from '../lib/config.js';
 import { schemas, validateBody } from '../lib/validate.js';
 import { requireRole } from '../lib/auth.js';
 
 const router = Router();
-const home = homedir();
+const home = PANEL_HOME;
 const AUTHORIZED_KEYS = `${home}/.ssh/authorized_keys`;
 
 // Ensure .ssh exists
@@ -58,7 +57,7 @@ router.post('/ssh-keys', requireRole('admin'), validateBody(schemas.addSshKey), 
     const updated = authorized ? `${authorized}\n${newKey}\n` : `${newKey}\n`;
 
     writeFileSync(AUTHORIZED_KEYS, updated, 'utf-8');
-    run(`chmod 600 ${AUTHORIZED_KEYS} && chown ${process.env.USER}:${process.env.USER} ${AUTHORIZED_KEYS} 2>&1`, {});
+    run(`chmod 600 ${AUTHORIZED_KEYS} && chown ${PANEL_USER}:${PANEL_USER} ${AUTHORIZED_KEYS} 2>&1`, {});
     req.audit?.('ssh.add', req.body.pubkey.slice(0, 40), {});
     res.json({ success: true });
   } catch (err) {

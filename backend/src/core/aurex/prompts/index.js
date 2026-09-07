@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { PANEL_HOME } from '../../../lib/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -9,7 +10,7 @@ let cached = null;
 export function getInfrastructurePrompt() {
   if (cached) return cached;
   const candidates = [
-    '/home/digital-auracle/aurex/prompts/capabilities/infrastructure.md',
+    `${PANEL_HOME}/aurex/prompts/capabilities/infrastructure.md`,
     join(__dirname, '../../../../docs/aurex-infrastructure-contract.md'),
     join(__dirname, 'infrastructure.md'),
   ];

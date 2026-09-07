@@ -6,6 +6,7 @@ import { createHmac, randomBytes } from 'crypto';
 import { requireRole } from '../lib/auth.js';
 import { logger } from '../lib/logger.js';
 import { run } from '../lib/exec.js';
+import { PANEL_HOME, PANEL_USER, APPS_DIR, BACKUP_DIR, COMPOSE_DIR } from '../lib/config.js';
 import { buildServerContext as coreBuildServerContext } from '../core/aurex/engine.js';
 import { PANEL_TOOLS as CORE_TOOLS, getCapabilities as coreGetCapabilities } from '../core/aurex/tools/index.js';
 import { INFRASTRUCTURE_INSTRUCTION } from '../core/aurex/prompts/index.js';
@@ -29,11 +30,11 @@ const HOST_ROOTS = [
   '/etc/nginx',
   '/etc',
   '/tmp',
-  '/home/digital-auracle/apps',
-  '/home/digital-auracle/aurex',
-  '/home/digital-auracle/server-panel',
-  '/home/digital-auracle/compose',
-  '/home/digital-auracle/backups',
+  APPS_DIR,
+  `${PANEL_HOME}/aurex`,
+  `${PANEL_HOME}/server-panel`,
+  COMPOSE_DIR,
+  BACKUP_DIR,
 ];
 
 function isAllowedHostPath(p) {
@@ -166,7 +167,7 @@ async function buildServerContext() {
 
   // services (key subset)
   try {
-    const svcs = ['nginx', 'docker', 'postgresql', 'redis-server', 'pm2-digital-auracle', 'ollama', 'ssh', 'cloudflared'];
+    const svcs = ['nginx', 'docker', 'postgresql', 'redis-server', `pm2-${PANEL_USER}`, 'ollama', 'ssh', 'cloudflared'];
     ctx.services = svcs.map(s => {
       try { const active = run(`systemctl is-active ${s} 2>&1`, {}).trim(); const enabled = run(`systemctl is-enabled ${s} 2>&1`, {}).trim(); return { name: s, active, enabled }; }
       catch { return { name: s, active: 'unknown' }; }
@@ -191,7 +192,7 @@ async function buildServerContext() {
   try { ctx.cron = run('crontab -l 2>&1 | head -c 2000', {}).trim().slice(0, 2000); } catch {}
 
   // panel health
-  try { ctx.backups = readdirSync('/home/digital-auracle/backups').length + ' backup(s)'; } catch { ctx.backups = 'n/a'; }
+  try { ctx.backups = readdirSync(BACKUP_DIR).length + ' backup(s)'; } catch { ctx.backups = 'n/a'; }
 
   return ctx;
 }

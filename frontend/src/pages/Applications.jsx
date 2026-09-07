@@ -161,7 +161,7 @@ export default function Applications() {
         open={!!confirmDel} onClose={() => setConfirmDel(null)}
         onConfirm={() => confirmDel && delApp(confirmDel.name)}
         title="Delete application" confirmText="Delete"
-        message={`Delete '${confirmDel?.name}'? The PM2 process and its directory (if in /home/digital-auracle/apps) will be removed.`} />
+        message={`Delete '${confirmDel?.name}'? The PM2 process and its directory (if in /root/apps) will be removed.`} />
     </div>
   )
 }
@@ -219,7 +219,7 @@ function DeployModal({ open, onClose, onDeployed }) {
 
         {err && <p className="text-sm text-panel-red">{err}</p>}
         <p className="text-xs text-panel-muted bg-panel-bg rounded-md p-3 border border-panel-border">
-          App is created under <code className="font-mono">/home/digital-auracle/apps/{form.name || '&lt;name&gt;'}</code> and started via PM2 in cluster mode.
+          App is created under <code className="font-mono">/root/apps/{form.name || '&lt;name&gt;'}</code> and started via PM2 in cluster mode.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

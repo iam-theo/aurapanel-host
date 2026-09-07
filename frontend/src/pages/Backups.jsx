@@ -151,7 +151,7 @@ function CreateBackupModal({ open, onClose, onCreated }) {
 
         {err && <p className="text-sm text-panel-red">{err}</p>}
         <p className="text-xs text-panel-muted bg-panel-bg rounded-md p-3 border border-panel-border">
-          Backups are stored in <code className="font-mono">/home/digital-auracle/backups</code>. Database backups require PostgreSQL superuser access.
+          Backups are stored in <code className="font-mono">/root/backups</code>. Database backups require PostgreSQL superuser access.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -189,7 +189,7 @@ function RestoreModal({ backup, onClose, onRestored }) {
         {backup.type === 'database' ? (
           <Field label="Restore into database"><input className="input-field" placeholder="target_db" value={targetDb} onChange={e => setTargetDb(e.target.value)} /></Field>
         ) : (
-          <Field label="Extract to directory"><input className="input-field" placeholder="/home/digital-auracle/restore" value={dest} onChange={e => setDest(e.target.value)} /></Field>
+          <Field label="Extract to directory"><input className="input-field" placeholder="/root/restore" value={dest} onChange={e => setDest(e.target.value)} /></Field>
         )}
         {err && <p className="text-sm text-panel-red">{err}</p>}
         <p className="text-sm text-panel-yellow bg-panel-yellow/10 rounded-md p-3 border border-panel-yellow/20">This will overwrite existing data. Proceed with caution.</p>

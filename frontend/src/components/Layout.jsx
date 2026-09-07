@@ -91,7 +91,7 @@ export default function Layout() {
             </button>
             <div>
               <h1 className="text-lg font-semibold text-panel-text">{pageTitle}</h1>
-              <p className="text-xs text-panel-muted">digital-auracle</p>
+              <p className="text-xs text-panel-muted">{user?.username || 'root'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ export default function Layout() {
                 <div className="w-7 h-7 rounded-full bg-panel-accent flex items-center justify-center text-xs font-bold text-white">
                   {(user?.username || 'DA').slice(0, 2).toUpperCase()}
                 </div>
-                <span className="text-sm hidden sm:block">{user?.username || 'digital-auracle'}</span>
+                <span className="text-sm hidden sm:block">{user?.username || 'root'}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-panel-accent/20 text-panel-accent hidden sm:block">{user?.role || 'admin'}</span>
               </div>
               <button onClick={async () => { await logout(); navigate('/login') }} title="Sign out" className="p-2 rounded-md hover:bg-panel-card border border-transparent hover:border-panel-border text-panel-muted hover:text-panel-text">
