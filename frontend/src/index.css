@@ -118,3 +118,15 @@
 @media (prefers-reduced-motion: reduce) {
   .toast-enter { animation: none; }
 }
+
+@keyframes route-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.route-progress {
+  width: 25%;
+  animation: route-progress-slide 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-progress { animation: none; width: 100%; }
+}

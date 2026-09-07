@@ -5,7 +5,7 @@ import { NotifyProvider } from './context/NotifyContext'
 import { ThemeProvider } from './context/ThemeContext'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
-import { PageLoader } from './components/ui.jsx'
+import { PageLoader, RouteProgress } from './components/ui.jsx'
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Processes = lazy(() => import('./pages/Processes.jsx'))
@@ -32,7 +32,7 @@ function Protected({ children }) {
 }
 
 function Fallback() {
-  return <div className="p-8"><PageLoader label="Loading page..." className="min-h-[50vh]" /></div>
+  return <RouteProgress />
 }
 
 export default function App() {

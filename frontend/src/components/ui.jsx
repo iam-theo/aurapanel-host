@@ -55,9 +55,19 @@ export function Spinner({ size = 16, className = '' }) {
   return <Loader2 size={size} className={`animate-spin ${className}`} aria-hidden />
 }
 
-// Centered page/section loader — use for initial loads and route
-// transitions instead of flashing skeleton blocks. Background refreshes
-// must keep stale content visible and use Spinner, not this.
+// Slim top progress bar for route-chunk transitions. Intentionally NOT a
+// full spinner: the page's own data loader follows, and two stacked
+// spinners look like flicker. Chunk loads are milliseconds (preloaded).
+export function RouteProgress() {
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[90] h-0.5 bg-transparent pointer-events-none" role="status" aria-label="Loading page">
+      <div className="route-progress h-full bg-panel-accent rounded-r" />
+    </div>
+  )
+}
+
+// Centered page/section loader — use for initial data loads. Background
+// refreshes must keep stale content visible and use Spinner, not this.
 export function PageLoader({ label = 'Loading...', className = '' }) {
   return (
     <div role="status" aria-live="polite"

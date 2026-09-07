@@ -62,6 +62,29 @@ const systemNav = [
 const allGroups = [...navGroups, { title: 'System', items: systemNav }]
 const NAV_OPEN_KEY = 'panel-nav-open'
 
+// Warm route chunks so sidebar navigation rarely suspends (which would
+// flash the progress bar, then the page spinner — the "double loader").
+// Same module URLs as App.jsx lazy() calls; the bundler dedupes them.
+const routePrefetchers = {
+  '/': () => import('../pages/Dashboard.jsx'),
+  '/processes': () => import('../pages/Processes.jsx'),
+  '/applications': () => import('../pages/Applications.jsx'),
+  '/containers': () => import('../pages/Containers.jsx'),
+  '/databases': () => import('../pages/Databases.jsx'),
+  '/backups': () => import('../pages/Backups.jsx'),
+  '/domains': () => import('../pages/Domains.jsx'),
+  '/files': () => import('../pages/Files.jsx'),
+  '/services': () => import('../pages/Services.jsx'),
+  '/cron': () => import('../pages/Cron.jsx'),
+  '/ssh-keys': () => import('../pages/SshKeys.jsx'),
+  '/marketplace': () => import('../pages/Marketplace.jsx'),
+  '/aurex': () => import('../pages/Aurex.jsx'),
+  '/settings': () => import('../pages/Settings.jsx'),
+}
+const prefetchRoute = (to) => {
+  try { routePrefetchers[to]?.().catch(() => {}) } catch {}
+}
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, logout } = useAuth()
@@ -69,6 +92,21 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: summary } = useSWR('/pm2/summary', () => api.get('/pm2/summary'), { refreshInterval: 30000, dedupingInterval: 10000 })
+
+  // Preload all route chunks when the browser is idle (post-login), plus the
+  // app-detail chunk reachable from the Applications page
+  useEffect(() => {
+    const warm = () => {
+      Object.values(routePrefetchers).forEach(fn => { try { fn().catch(() => {}) } catch {} })
+      try { import('../pages/ApplicationDetail.jsx').catch(() => {}) } catch {}
+    }
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 })
+      return () => window.cancelIdleCallback?.(id)
+    }
+    const t = setTimeout(warm, 2500)
+    return () => clearTimeout(t)
+  }, [])
 
   const pageTitle = allGroups.flatMap(g => g.items).find(n =>
     n.end ? location.pathname === n.to : location.pathname.startsWith(n.to)
@@ -227,6 +265,8 @@ function Sidebar({ summary, onClose }) {
                       end={item.end}
                       className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                       onClick={onClose}
+                      onMouseEnter={() => prefetchRoute(item.to)}
+                      onFocus={() => prefetchRoute(item.to)}
                     >
                       <item.icon size={18} />
                       <span className="flex-1">{item.label}</span>
